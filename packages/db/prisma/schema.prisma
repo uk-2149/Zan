@@ -1,0 +1,129 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CLIENT
+  PROVIDER
+  ADMIN
+}
+
+enum JobStatus {
+  CREATED
+  FUNDED
+  ASSIGNED
+  RUNNING
+  COMPLETED
+  FAILED
+  DISPUTED
+  PAID
+}
+
+enum ProviderStatus {
+  OFFLINE
+  ONLINE
+  BUSY
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  walletAddress String?  @unique
+  role          UserRole
+  createdAt     DateTime @default(now())
+
+  provider      Provider?
+  jobs          Job[]    @relation("ClientJobs")
+}
+
+model Provider {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+
+  gpuModel        String
+  vramGB          Int
+  location        String?
+  pricePerHour    Float
+
+  status          ProviderStatus @default(OFFLINE)
+  reputationScore Float          @default(0)
+
+  lastHeartbeat   DateTime?
+  createdAt       DateTime       @default(now())
+
+  jobs            Job[]
+  metrics         ProviderMetric?
+}
+
+model ProviderMetric {
+  id               String  @id @default(uuid())
+  providerId       String  @unique
+  provider         Provider @relation(fields: [providerId], references: [id])
+
+  totalJobs        Int     @default(0)
+  successfulJobs   Int     @default(0)
+  failedJobs       Int     @default(0)
+  disputes         Int     @default(0)
+
+  uptimeSeconds    Int     @default(0)
+}
+
+model Job {
+  id                  String     @id @default(uuid())
+  clientId            String
+  client              User       @relation("ClientJobs", fields: [clientId], references: [id])
+
+  providerId          String?
+  provider            Provider?  @relation(fields: [providerId], references: [id])
+
+  title               String
+  type                String     // "inference", "render", etc.
+
+  inputUri            String     // S3/IPFS
+  outputUri           String?
+
+  budget              Float
+  status              JobStatus  @default(CREATED)
+
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  escrow              Escrow?
+  events              JobEvent[]
+}
+
+model Escrow {
+  id            String   @id @default(uuid())
+  jobId         String   @unique
+  job           Job      @relation(fields: [jobId], references: [id])
+
+  amount        Float
+  token         String   // SOL / USDC
+  txSignature   String   // Solana tx hash
+
+  isReleased    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+model JobEvent {
+  id        String   @id @default(uuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id])
+
+  type      String   // CREATED, ASSIGNED, RUNNING, etc.
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+}
