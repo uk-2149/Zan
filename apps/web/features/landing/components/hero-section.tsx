@@ -4,12 +4,12 @@ import { ArrowRight, Cpu } from "lucide-react";
 import { EarthGlobe } from "./earth-globe";
 
 export function HeroSection() {
-  const { badge, headline, subheadline, ctaPrimary, ctaSecondary } = LANDING_CONTENT.hero;
-  const[line1, line2] = headline.split('\n');
+  const { badge, headline, subheadline, ctaPrimary, ctaSecondary } =
+    LANDING_CONTENT.hero;
+  const [line1, line2] = headline.split("\n");
 
   return (
     <section className="relative pt-20 pb-20 md:pt-24 md:pb-32 overflow-hidden bg-grid-pattern">
-      
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[300px] bg-brand-cyan/20 rounded-full -z-10 animate-spotlight" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-brand-cyan/5 to-transparent h-20 w-full animate-scanline -z-10" />
@@ -19,7 +19,6 @@ export function HeroSection() {
       </div>
 
       <div className="container mx-auto px-6 relative z-10 text-center flex flex-col items-center">
-
         <div className="animate-spring-up [animation-delay:300ms] inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-cyan/10 border border-brand-cyan/30 text-brand-cyan text-xs font-semibold uppercase tracking-widest mb-8 shadow-[0_0_20px_rgba(0,255,209,0.15)] relative">
           <div className="absolute inset-0 rounded-full bg-brand-cyan/5 animate-pulse" />
           <Cpu className="w-4 h-4 relative z-10" />
@@ -27,7 +26,6 @@ export function HeroSection() {
         </div>
 
         <h1 className="text-5xl md:text-7xl lg:text-[5.5rem] font-bold tracking-tight mb-8 leading-[1.05] flex flex-col items-center gap-2">
-          
           <span className="block text-white drop-shadow-2xl animate-mask-up-blur [animation-delay:600ms]">
             {line1}
           </span>
@@ -41,15 +39,15 @@ export function HeroSection() {
         </p>
 
         <div className="animate-spring-up [animation-delay:2000ms] flex flex-col sm:flex-row items-center gap-5 w-full sm:w-auto">
-          <Link 
-            href="/client" 
+          <Link
+            href="/client"
             className="group w-full sm:w-auto px-8 py-4 rounded-full bg-white text-black font-semibold hover:bg-white/90 hover:scale-105 active:scale-95 transition-all duration-500 flex items-center justify-center gap-2 shadow-[0_0_30px_rgba(255,255,255,0.15)] hover:shadow-[0_0_50px_rgba(0,255,209,0.4)]"
           >
-            {ctaPrimary} 
+            {ctaPrimary}
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" />
           </Link>
-          <Link 
-            href="/provider" 
+          <Link
+            href="/provider"
             className="w-full sm:w-auto px-8 py-4 rounded-full bg-brand-dark/50 backdrop-blur-md border border-white/10 text-white font-medium hover:bg-white/5 hover:border-brand-cyan/30 hover:scale-105 active:scale-95 transition-all duration-500 flex items-center justify-center"
           >
             {ctaSecondary}

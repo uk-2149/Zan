@@ -25,8 +25,8 @@ export function SolutionSection() {
             <Zap className="h-4 w-4 animate-pulse" />
             {tagline}
           </motion.div>
-          
-          <motion.h2 
+
+          <motion.h2
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-100px" }}
@@ -36,7 +36,7 @@ export function SolutionSection() {
             {headline}
           </motion.h2>
 
-          <motion.p 
+          <motion.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-100px" }}
@@ -49,9 +49,8 @@ export function SolutionSection() {
 
         {/* Bento grid*/}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8">
-          
           {/* Card 1*/}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-50px" }}
@@ -78,7 +77,7 @@ export function SolutionSection() {
           </motion.div>
 
           {/* Card 2*/}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-50px" }}
@@ -90,12 +89,16 @@ export function SolutionSection() {
               <div className="w-16 h-16 rounded-full border border-white/20 flex items-center justify-center bg-brand-gray z-10">
                 <ShieldCheck className="w-6 h-6 text-white/50" />
               </div>
-              
+
               <div className="flex-1 h-1 bg-white/10 relative overflow-hidden rounded-full max-w-[200px]">
-                <motion.div 
+                <motion.div
                   className="absolute top-0 left-0 h-full w-1/2 bg-gradient-to-r from-transparent via-brand-cyan to-transparent shadow-[0_0_15px_#00ffd1]"
-                  animate={{ x:["-100%", "200%"] }}
-                  transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                  animate={{ x: ["-100%", "200%"] }}
+                  transition={{
+                    duration: 1.5,
+                    repeat: Infinity,
+                    ease: "linear",
+                  }}
                 />
               </div>
 
@@ -116,7 +119,7 @@ export function SolutionSection() {
           </motion.div>
 
           {/* Card 3*/}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-50px" }}
@@ -140,13 +143,17 @@ export function SolutionSection() {
                 <div className="w-24 h-24 border border-white/20 bg-brand-gray/80 backdrop-blur-md rounded-2xl flex items-center justify-center">
                   <Box className="w-8 h-8 text-white/30" />
                 </div>
-                
+
                 <ArrowRightLeft className="w-6 h-6 text-brand-cyan/50" />
 
                 <div className="relative">
-                  <motion.div 
+                  <motion.div
                     animate={{ rotate: 360 }}
-                    transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                    transition={{
+                      duration: 15,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
                     className="absolute -inset-4 border border-dashed border-brand-cyan/50 rounded-full"
                   />
                   <div className="w-32 h-32 border-2 border-brand-cyan bg-brand-cyan/10 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-[0_0_40px_rgba(0,255,209,0.3)]">
@@ -156,7 +163,6 @@ export function SolutionSection() {
               </div>
             </div>
           </motion.div>
-
         </div>
       </div>
     </section>

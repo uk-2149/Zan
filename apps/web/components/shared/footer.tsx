@@ -13,13 +13,31 @@ const FOOTER_LINKS = {
 };
 
 const GithubIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
     <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.24c3.18-.38 6.52-1.6 6.52-7a5.2 5.2 0 0 0-1.39-3.6 5.3 5.3 0 0 0-.1-3.5s-1.13-.36-3.7 1.36a12.8 12.8 0 0 0-7 0C6.13 1.5 5 1.86 5 1.86a5.3 5.3 0 0 0-.1 3.5A5.2 5.2 0 0 0 3.5 9c0 5.4 3.34 6.6 6.52 7a4.8 4.8 0 0 0-1 3.24v4" />
   </svg>
 );
 
 const XIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
     <path d="M4 4l11.733 16h4.267l-11.733 -16z" />
     <path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772" />
   </svg>
@@ -70,13 +88,22 @@ export function Footer() {
               infinitely scalable compute power for the next generation of AI.
             </p>
             <div className="flex items-center gap-4 mt-4">
-              <Link href={siteConfig.links.twitter} className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white/50 hover:text-brand-cyan hover:border-brand-cyan hover:bg-brand-cyan/10 transition-all duration-300">
+              <Link
+                href={siteConfig.links.twitter}
+                className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white/50 hover:text-brand-cyan hover:border-brand-cyan hover:bg-brand-cyan/10 transition-all duration-300"
+              >
                 <XIcon className="w-4 h-4" />
               </Link>
-              <Link href={siteConfig.links.github} className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white/50 hover:text-brand-cyan hover:border-brand-cyan hover:bg-brand-cyan/10 transition-all duration-300">
+              <Link
+                href={siteConfig.links.github}
+                className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white/50 hover:text-brand-cyan hover:border-brand-cyan hover:bg-brand-cyan/10 transition-all duration-300"
+              >
                 <GithubIcon className="w-4 h-4" />
               </Link>
-              <Link href="#" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white/50 hover:text-brand-cyan hover:border-brand-cyan hover:bg-brand-cyan/10 transition-all duration-300">
+              <Link
+                href="#"
+                className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white/50 hover:text-brand-cyan hover:border-brand-cyan hover:bg-brand-cyan/10 transition-all duration-300"
+              >
                 <Disc className="w-4 h-4" />
               </Link>
             </div>

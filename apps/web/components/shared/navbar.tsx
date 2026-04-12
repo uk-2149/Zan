@@ -5,7 +5,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Logo } from "./logo";
 
-const NAV_LINKS =[
+const NAV_LINKS = [
   { name: "Problem", href: "#problem" },
   { name: "Solution", href: "#solution" },
   { name: "Process", href: "#process" },
@@ -20,12 +20,12 @@ export function Navbar() {
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-brand-dark/60 backdrop-blur-xl">
       <div className="container mx-auto px-6 h-20 flex items-center justify-between">
         <Logo />
-        
+
         <nav className="hidden lg:flex items-center gap-8 relative">
           {NAV_LINKS.map((link, idx) => (
-            <Link 
+            <Link
               key={idx}
-              href={link.href} 
+              href={link.href}
               onMouseEnter={() => setHoveredIndex(idx)}
               onMouseLeave={() => setHoveredIndex(null)}
               className="relative text-sm font-medium text-white/60 hover:text-white transition-colors duration-300 py-2"
@@ -46,14 +46,14 @@ export function Navbar() {
         </nav>
 
         <div className="flex items-center gap-6">
-          <Link 
-            href="/provider" 
+          <Link
+            href="/provider"
             className="hidden md:block text-sm font-medium text-white/60 hover:text-white transition-colors"
           >
             Earn with GPU
           </Link>
-          <Link 
-            href="/client" 
+          <Link
+            href="/client"
             className="group relative px-6 py-2.5 rounded-full bg-white text-black text-sm font-bold hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_30px_rgba(0,255,209,0.4)] overflow-hidden"
           >
             <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-brand-cyan/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
