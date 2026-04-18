@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
+import { AuthProvider } from "@/components/shared/auth-provider";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -27,7 +28,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark scroll-smooth">
+    <html
+      lang="en"
+      className="dark scroll-smooth"
+      data-scroll-behavior="smooth"
+    >
       <body
         className={`
           ${geistSans.variable} ${geistMono.variable} 
@@ -35,9 +40,11 @@ export default function RootLayout({
           bg-brand-dark text-white min-h-screen flex flex-col
         `}
       >
-        <Navbar />
-        <main className="flex-1 pt-16">{children}</main>
-        <Footer />
+        <AuthProvider>
+          <Navbar />
+          <main className="flex-1 pt-16">{children}</main>
+          <Footer />
+        </AuthProvider>
       </body>
     </html>
   );
