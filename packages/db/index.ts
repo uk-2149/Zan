@@ -1,5 +1,9 @@
 import { PrismaClient } from "./generated/prisma/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { config as loadEnv } from "dotenv";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 const globalForPrisma = globalThis as unknown as {
@@ -7,7 +11,18 @@ const globalForPrisma = globalThis as unknown as {
   pool?: pg.Pool;
 };
 
-const connectionString = `${process.env.DATABASE_URL}`;
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const envPath = resolve(currentDir, "../.env");
+
+if (existsSync(envPath)) {
+  loadEnv({ path: envPath });
+}
+
+const connectionString = process.env.DATABASE_URL?.trim();
+
+if (!connectionString) {
+  throw new Error(`DATABASE_URL is not set. Expected it in ${envPath}`);
+}
 
 const pool = globalForPrisma.pool ?? new pg.Pool({ connectionString });
 const adapter = new PrismaPg(pool);

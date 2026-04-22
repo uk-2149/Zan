@@ -1,25 +1,34 @@
-import express from "express";
-import { prisma } from "@repo/db";
+// src/index.ts
+import express from 'express'
+import cors from 'cors'
+import helmet from 'helmet'
+import { createServer } from 'http'
+import { authRouter }     from './routes/auth.routes.js'
+import { providerRouter } from './routes/provider.routes.js'
+import { setupWebSocketServer } from './ws/server.js'
+import { startHeartbeatMonitor } from './jobs/heartbeatMonitor.js'
 
-const app = express();
-const PORT = 8000;
+const app = express()
 
-async function checkDB() {
-  try {
-    await prisma.$connect();
-    console.log("✅ DB connected successfully");
-  } catch (error) {
-    console.error("❌ DB connection failed:", error);
-    process.exit(1); // crash app if DB fails
-  }
-}
+app.use(helmet())
+app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*' }))
+app.use(express.json())
 
-checkDB();
+// Routes
+app.use('/api/auth',     authRouter)
+app.use('/api/providers', providerRouter)
 
-app.get("/", (req, res) => {
-  res.send("API is running ");
-});
+// Health check
+app.get('/health', (_, res) => res.json({ ok: true, ts: new Date().toISOString() }))
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// 404
+app.use((_, res) => res.status(404).json({ error: 'Not found' }))
+
+const server = createServer(app)
+setupWebSocketServer(server)
+startHeartbeatMonitor()
+
+const PORT = process.env.PORT ?? 3001
+server.listen(PORT, () => {
+  console.log(`[Server] Running on port ${PORT}`)
+})

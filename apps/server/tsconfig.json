@@ -4,6 +4,11 @@
     "target": "es2022",
     "lib": ["es2022"],
     "types": ["node"],
+    "baseUrl": ".",
+    // "paths": {
+    //   "@repo/types": ["../../packages/types/dist/index.d.ts"],
+    //   "@repo/crypto": ["../../packages/crypto/dist/index.d.ts"]
+    // },
 
     "rootDir": "./src",
     "outDir": "./dist",
@@ -21,7 +26,6 @@
     "isolatedModules": true,
     "moduleDetection": "force",
     "skipLibCheck": true
-    // ← remove "paths" entirely; use package.json workspaces instead
   },
   "include": ["src"],
   "exclude": ["node_modules"]

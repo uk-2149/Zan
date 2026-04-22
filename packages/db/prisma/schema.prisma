@@ -13,6 +13,8 @@ datasource db {
   provider = "postgresql"
 }
 
+// ENUMS
+
 enum UserRole {
   CLIENT
   PROVIDER
@@ -22,33 +24,62 @@ enum UserRole {
 enum JobStatus {
   CREATED
   FUNDED
+  QUEUED
   ASSIGNED
   RUNNING
   COMPLETED
   FAILED
   DISPUTED
   PAID
+  REFUNDED
 }
 
 enum ProviderStatus {
-  OFFLINE
-  ONLINE
-  BUSY
+  PENDING        // registered, agent not connected yet
+  ACTIVE         // online, available
+  BUSY           // running a job
+  OFFLINE        // heartbeat missed > 90s
+  SUSPENDED      // slashed or banned
 }
 
+enum VerificationStatus {
+  NOT_REQUIRED   // tier 2+ spot check skipped (random checks)
+  PENDING        // verification in progress
+  PASSED
+  SUSPICIOUS     // flagged, under review
+  FAILED         // fraud detected
+}
+
+enum EscrowStatus {
+  LOCKED
+  RELEASED
+  REFUNDED
+  DISPUTED
+}
+
+enum StakeTransactionType {
+  DEPOSIT        // provider added stake
+  SLASH_VERIFICATION  // cut for running verification GPU
+  SLASH_FRAUD         // penalized for mismatching result
+  WITHDRAWAL     // provider withdrew stake
+  TIER_REFUND    // stake returned as tier increases
+}
+
+// AUTH
+
 model Account {
-  id                 String  @id @default(uuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String? @db.Text
-  access_token       String? @db.Text
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String? @db.Text
-  session_state      String?
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -56,7 +87,7 @@ model Account {
 }
 
 model Session {
-  id           String   @id @default(uuid())
+  id           String   @id @default(cuid())
   sessionToken String   @unique
   userId       String
   expires      DateTime
@@ -64,99 +95,250 @@ model Session {
 }
 
 model User {
-  id            String   @id @default(uuid())
+  id            String    @id @default(cuid())
   name          String?
   email         String?   @unique
   emailVerified DateTime?
   image         String?
-  password      String?   // Hashed password for Email login
-  walletAddress String?  @unique
+  password      String?
+  walletAddress String?   @unique
   role          UserRole  @default(CLIENT)
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  accounts      Account[]
-  sessions      Session[]
-  provider      Provider?
-  jobs          Job[]    @relation("ClientJobs")
+  accounts Account[]
+  sessions Session[]
+  provider Provider[]
+  jobs     Job[]     @relation("ClientJobs")
 }
+
+// PROVIDER
 
 model Provider {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id])
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
-  gpuModel        String
-  vramGB          Int
-  location        String?
-  pricePerHour    Float
+  // ── GPU specs (auto-detected by agent) ──
+  gpuModel          String
+  vramGB            Int
+  cudaVersion       String?
+  driverVersion     String?
+  computeCapability String?
 
-  status          ProviderStatus @default(OFFLINE)
-  reputationScore Float          @default(0)
+  // ── Network ──
+  downloadMbps Float?
+  uploadMbps   Float?
+  pingMs       Float?
+  location     String?
 
-  lastHeartbeat   DateTime?
-  createdAt       DateTime       @default(now())
+  // ── Pricing ──
+  pricePerHour Decimal
 
-  jobs            Job[]
-  metrics         ProviderMetric?
+  // ── Status & Trust ──
+  status ProviderStatus @default(PENDING)
+
+  // tier 0 = new        → every job gets shadow verified
+  // tier 1 = trusted    → 1 in 5 jobs verified
+  // tier 2 = verified   → random spot checks only
+  tier   Int            @default(0)
+
+  // ── Reputation ──
+  reputationScore Float @default(0)
+  jobsCompleted   Int   @default(0)
+
+  // ── Agent ──
+  agentPublicKey String?  @unique
+  agentVersion   String?
+
+  // ── Availability ──
+  availabilitySchedule Json?
+  // { "type": "always" } | { "type": "scheduled", "from": "22:00", "to": "08:00" }
+
+  // ── Staking ──
+  // Required stake per tier:
+  // tier 0 → 3 SOL (entry)
+  // tier 1 → 2 SOL (returned 1 SOL)
+  // tier 2 → 1 SOL (returned another 1 SOL)
+  stakedAmount     Decimal    @default(0)   // current locked amount
+  stakeSignature   String?               // Solana tx of initial deposit
+  stakeLockedUntil DateTime?             // withdrawal cooldown
+
+  lastHeartbeat DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  jobs              Job[]             @relation("ProviderJobs")
+  verificationJobs  Job[]             @relation("VerificationProviderJobs")
+  metrics           ProviderMetric?
+  stakeTransactions StakeTransaction[]
+
+  @@index([userId]) 
+  @@index([status])
+  @@index([status, tier])
+  @@index([status, vramGB])
+  @@index([lastHeartbeat])
 }
+
+// PROVIDER METRICS
 
 model ProviderMetric {
-  id               String  @id @default(uuid())
-  providerId       String  @unique
-  provider         Provider @relation(fields: [providerId], references: [id])
+  id         String   @id @default(cuid())
+  providerId String   @unique
+  provider   Provider @relation(fields: [providerId], references: [id])
 
-  totalJobs        Int     @default(0)
-  successfulJobs   Int     @default(0)
-  failedJobs       Int     @default(0)
-  disputes         Int     @default(0)
+  totalJobs      Int @default(0)
+  successfulJobs Int @default(0)
+  failedJobs     Int @default(0)
+  disputes       Int @default(0)
 
-  uptimeSeconds    Int     @default(0)
+  // Verification outcomes
+  verificationsPassed Int @default(0)
+  verificationsFailed Int @default(0)  // 3 failures → suspended
+  timesBeingFlagged   Int @default(0)  // running count before suspension
+
+  // Performance (rolling averages, updated after each job)
+  performanceScore   Float @default(0)  // 0-100
+  avgExecutionTimeMs Int?
+  avgGpuUtilization  Float?
+
+  // Financial
+  totalEarnedSol    Decimal @default(0)
+  totalSlashedSol   Decimal @default(0)  // total stake lost to slashing
+
+  // Uptime
+  uptimeSeconds Int   @default(0)
+  uptimePercent Float @default(0)
+
+  updatedAt DateTime @updatedAt
 }
+
+// STAKE TRANSACTION LOG
+// every SOL movement on a provider's stake
+
+model StakeTransaction {
+  id         String   @id @default(cuid())
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id])
+
+  type      StakeTransactionType
+  amount    Decimal               // SOL amount (positive = added, negative = deducted)
+  balanceAfter Decimal            // stake balance after this transaction
+
+  // Optional references
+  jobId     String?             // which job caused this (for slashing)
+  txSig     String?             // Solana tx signature
+
+  note      String?             // human readable reason
+  createdAt DateTime @default(now())
+
+  @@index([providerId])
+  @@index([providerId, type])
+}
+
+// JOB
 
 model Job {
-  id                  String     @id @default(uuid())
-  clientId            String
-  client              User       @relation("ClientJobs", fields: [clientId], references: [id])
+  id       String    @id @default(cuid())
+  clientId String
+  client   User      @relation("ClientJobs", fields: [clientId], references: [id])
 
-  providerId          String?
-  provider            Provider?  @relation(fields: [providerId], references: [id])
+  // Primary provider assigned to this job
+  providerId String?
+  provider   Provider? @relation("ProviderJobs", fields: [providerId], references: [id])
 
-  title               String
-  type                String     // "inference", "render", etc.
+  // Verification provider (only set for tier 0 jobs)
+  verificationProviderId String?
+  verificationProvider   Provider? @relation("VerificationProviderJobs", fields: [verificationProviderId], references: [id])
 
-  inputUri            String     // S3/IPFS
-  outputUri           String?
+  // ── Job definition ──
+  title    String
+  type     String    // "inference" | "render" | "training"
+  inputUri String
+  outputUri String?
 
-  budget              Float
-  status              JobStatus  @default(CREATED)
+  // Verification provider's output (to compare against primary)
+  verificationOutputUri String?
 
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
+  // ── Requirements (matchmaker uses these) ──
+  requiredVramGB  Int?
+  requiredGpuTier Int  @default(0)
 
-  escrow              Escrow?
-  events              JobEvent[]
+  // ── Pricing ──
+  budget    Decimal
+  finalCost Decimal?
+
+  // ── Verification cost split ──
+  // When tier 0: verification GPU cost is split
+  // verificationCostProvider = cut from provider's stake
+  // verificationCostClient   = extra charged to client
+  verificationCostProvider Decimal?
+  verificationCostClient   Decimal?
+
+  retryCount  Int  @default(0)
+  maxRetries  Int  @default(3)
+
+  // ── Status ──
+  status             JobStatus          @default(CREATED)
+  verificationStatus VerificationStatus @default(PENDING)
+  verificationNotes  String?
+
+  // ── Execution metadata (submitted by provider agent) ──
+  // {
+  //   executionTimeMs, vramUsedMb, avgUtilization,
+  //   tempDeltaC, powerDrawW, exitCode
+  // }
+  executionMetadata             Json?
+  verificationExecutionMetadata Json? 
+
+  // ── Timing ──
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  escrow Escrow?
+  events JobEvent[]
+
+  @@index([status])
+  @@index([clientId])
+  @@index([providerId])
+  @@index([status, createdAt])
 }
+
+// ESCROW
 
 model Escrow {
-  id            String   @id @default(uuid())
-  jobId         String   @unique
-  job           Job      @relation(fields: [jobId], references: [id])
+  id    String @id @default(cuid())
+  jobId String @unique
+  job   Job    @relation(fields: [jobId], references: [id])
 
-  amount        Float
-  token         String   // SOL / USDC
-  txSignature   String   // Solana tx hash
+  amount Decimal
+  token  String       // "SOL" | "USDC"
+  status EscrowStatus @default(LOCKED)
 
-  isReleased    Boolean  @default(false)
-  createdAt     DateTime @default(now())
-}
+  depositTxSig String
 
-model JobEvent {
-  id        String   @id @default(uuid())
-  jobId     String
-  job       Job      @relation(fields: [jobId], references: [id])
+  releasedAt   DateTime?
+  releaseTxSig String?
 
-  type      String   // CREATED, ASSIGNED, RUNNING, etc.
-  metadata  Json?
+  refundedAt  DateTime?
+  refundTxSig String?
 
   createdAt DateTime @default(now())
+}
+
+// JOB EVENT (audit log)
+
+model JobEvent {
+  id    String @id @default(cuid())
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id])
+
+  type     String  // "CREATED" | "ASSIGNED" | "VERIFICATION_STARTED" | "SLASH" etc.
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([jobId])
 }

@@ -15,7 +15,7 @@ const Globe = dynamic(() => import("react-globe.gl"), {
 export function EarthGlobe() {
   const globeRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 800 });
+  const [dimensions, setDimensions] = useState({ width: 1600, height: 1600 });
   const [countries, setCountries] = useState({ features: [] });
 
   // Fetch the Geographic Earth Map

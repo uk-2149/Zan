@@ -1,0 +1,24 @@
+{
+  "name": "@repo/crypto",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist-cjs/index.cjs",
+      "default": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist dist-cjs && tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && mv dist-cjs/index.js dist-cjs/index.cjs",
+    "dev": "tsc --watch",
+    "lint": "eslint src/"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
