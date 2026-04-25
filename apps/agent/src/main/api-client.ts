@@ -20,7 +20,7 @@ export async function agentRequest(
 
   // Timestamp — server rejects anything older than 60s
   const timestamp = Date.now();
-  const action = path.replace(/\//g, "_");
+  const action = `/api${path}`.replace(/\//g, "_");
   const message = buildMessage(providerId, action, timestamp);
   const signature = signMessage(message, privateKey);
 

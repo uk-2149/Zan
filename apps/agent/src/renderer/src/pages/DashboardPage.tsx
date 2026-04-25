@@ -20,8 +20,13 @@ export default function DashboardPage({
     "disconnected",
   );
   const [toggling, setToggling] = useState(false);
+  const [statusError, setStatusError] = useState("");
   const [currentJob, setCurrentJob] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    setProvider(initP);
+  }, [initP]);
 
   useEffect(() => {
     const u1 = window.api.onWsStatus((s: string) => setWsStatus(s as any));
@@ -41,12 +46,15 @@ export default function DashboardPage({
   const toggleStatus = async () => {
     if (!provider || toggling) return;
     setToggling(true);
+    setStatusError("");
     const next = provider.status === "ACTIVE" ? "OFFLINE" : "ACTIVE";
     const res = await window.api.setStatus(next);
     if (res.success) {
       const updated = { ...provider, status: res.provider.status };
       setProvider(updated);
       onProviderUpdate(updated);
+    } else {
+      setStatusError(res.error ?? "Failed to update status");
     }
     setToggling(false);
   };
@@ -174,6 +182,7 @@ export default function DashboardPage({
                 </button>
               </div>
             </div>
+            {statusError && <div className="warn-box">{statusError}</div>}
 
             {/* Active job */}
             {currentJob && (

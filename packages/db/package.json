@@ -12,7 +12,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "seed:reset": "node prisma/reset.mjs"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",

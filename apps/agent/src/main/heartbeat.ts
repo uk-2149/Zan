@@ -1,6 +1,6 @@
-import axios from "axios";
 import { store } from "./store";
 import { getGpuMetrics } from "./detect";
+import { agentRequest } from "./api-client";
 
 export class HeartbeatService {
   private interval: NodeJS.Timeout | null = null;
@@ -28,22 +28,16 @@ export class HeartbeatService {
   private async ping() {
     try {
       const providerId = store.get("providerId");
-      const token = store.get("token");
-      if (!providerId || !token) return;
+      if (!providerId) return;
 
       const metrics = await getGpuMetrics();
 
-      await axios.post(
-        `${store.get("apiUrl")}/providers/heartbeat`,
-        {
-          providerId,
-          gpuUtilization: metrics?.utilization ?? 0,
-          vramUsedMb: metrics?.vramUsedMb ?? 0,
-          temperatureC: metrics?.temperatureC ?? 0,
-          isBusy: store.get("currentJobId") !== null,
-        },
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      await agentRequest("post", "/providers/heartbeat", {
+        gpuUtilization: metrics?.utilization ?? 0,
+        vramUsedMb: metrics?.vramUsedMb ?? 0,
+        temperatureC: metrics?.temperatureC ?? 0,
+        isBusy: store.get("currentJobId") !== null,
+      });
     } catch {
       // server marks offline after 90s automatically
     }

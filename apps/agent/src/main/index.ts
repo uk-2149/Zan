@@ -8,6 +8,7 @@ import { HeartbeatService } from "./heartbeat";
 import { connectWebSocket, disconnectWebSocket } from "./ws-client";
 import { setupTray } from "./tray";
 import { generateAgentKeypair } from "@repo/crypto";
+import { agentRequest } from "./api-client";
 
 let isQuitting = false;
 app.on("before-quit", () => {
@@ -17,6 +18,31 @@ app.on("before-quit", () => {
 let mainWindow: BrowserWindow | null = null;
 const heartbeat = new HeartbeatService();
 let trayController: { update: () => void } | null = null;
+
+async function ensureAgentConnected(providerId: string) {
+  const token = store.get("token");
+  const agentPublicKey = store.get("agentPublicKey");
+
+  if (!token || !agentPublicKey) {
+    throw new Error("Missing session or agent key");
+  }
+
+  try {
+    await axios.post(
+      `${store.get("apiUrl")}/providers/agent/connect`,
+      {
+        providerId,
+        agentPublicKey,
+        agentVersion: app.getVersion(),
+      },
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+  } catch (err: any) {
+    if (err.response?.status !== 409) {
+      throw err;
+    }
+  }
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -118,6 +144,9 @@ ipcMain.handle("auth:login", async (_, { email, password }) => {
       if (provider) {
         store.set("providerId", provider.id);
         store.set("machineRegistered", true);
+        if (!provider.agentPublicKey) {
+          await ensureAgentConnected(provider.id);
+        }
         heartbeat.start();
         connectWebSocket(mainWindow);
         trayController?.update();
@@ -173,7 +202,7 @@ ipcMain.handle("auth:get-session", async () => {
       headers: { Authorization: `Bearer ${token}` },
     });
     const providerId = store.get("providerId");
-    let provider = null;
+    let provider: any = null;
     if (providerId) {
       const provRes = await axios.get(
         `${store.get("apiUrl")}/providers/${providerId}`,
@@ -182,6 +211,16 @@ ipcMain.handle("auth:get-session", async () => {
         },
       );
       provider = provRes.data.provider;
+      if (provider && !provider.agentPublicKey) {
+        await ensureAgentConnected(provider.id);
+        const refreshedProvRes = await axios.get(
+          `${store.get("apiUrl")}/providers/${providerId}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+        provider = refreshedProvRes.data.provider;
+      }
     }
     return { user: data.user, provider };
   } catch {
@@ -212,6 +251,7 @@ ipcMain.handle(
       console.log("[MACHINE] Response:", data);
       store.set("providerId", data.providerId);
       store.set("machineRegistered", true);
+      await ensureAgentConnected(data.providerId);
       heartbeat.start();
       connectWebSocket(mainWindow);
       trayController?.update();
@@ -229,12 +269,7 @@ ipcMain.handle(
 
 ipcMain.handle("provider:set-status", async (_, { status }) => {
   try {
-    const token = store.get("token");
-    const { data } = await axios.patch(
-      `${store.get("apiUrl")}/providers/status`,
-      { status },
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
+    const data = await agentRequest("patch", "/providers/status", { status });
     if (status === "ACTIVE") {
       heartbeat.start();
       connectWebSocket(mainWindow);
@@ -253,12 +288,7 @@ ipcMain.handle("provider:set-status", async (_, { status }) => {
 
 ipcMain.handle("provider:get-stats", async () => {
   try {
-    const token = store.get("token");
-    const providerId = store.get("providerId");
-    const { data } = await axios.get(
-      `${store.get("apiUrl")}/providers/${providerId}/stats`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
+    const data = await agentRequest("get", "/providers/stats");
     return { success: true, ...data };
   } catch {
     return { success: false };
