@@ -228,6 +228,23 @@ ipcMain.handle("auth:get-session", async () => {
   }
 });
 
+ipcMain.handle("auth:update-wallet", async (_, { walletAddress }) => {
+  try {
+    const token = store.get("token");
+    const { data } = await axios.patch(
+      `${store.get("apiUrl")}/auth/wallet`,
+      { walletAddress },
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    return { success: true, user: data.user };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.response?.data?.error ?? "Failed to update wallet",
+    };
+  }
+});
+
 // ─── MACHINE ───────────────────────────────────────────────────────
 
 ipcMain.handle("machine:detect", async (event) => {

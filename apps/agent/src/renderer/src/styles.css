@@ -714,3 +714,72 @@ input::placeholder { color: var(--text3); }
 }
 .done-state h3 { font-size: 1.05rem; font-weight: 700; }
 .done-state p { font-size: 0.83rem; color: var(--text2); }
+
+/* ─── Wallet Card ─────────────────────────── */
+.wallet-card {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-lg);
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.wallet-card.connected {
+  border-color: rgba(16,185,129,0.25);
+  background: rgba(16,185,129,0.04);
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.wallet-card-left { display: flex; align-items: center; gap: 14px; }
+.wallet-card-header { display: flex; align-items: center; gap: 14px; }
+.wallet-icon { font-size: 1.4rem; color: var(--amber); }
+.wallet-label { display: block; font-size: 0.85rem; font-weight: 600; }
+.wallet-sub { display: block; font-size: 0.72rem; color: var(--text3); margin-top: 2px; }
+.wallet-address {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--text2);
+  margin-top: 2px;
+}
+.wallet-connected-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--green);
+  background: rgba(16,185,129,0.1);
+  border: 1px solid rgba(16,185,129,0.2);
+  padding: 5px 12px;
+  border-radius: 20px;
+}
+.wallet-steps { display: flex; flex-direction: column; gap: 8px; }
+.wallet-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--text2);
+}
+.step-num {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--amber);
+  color: #070400;
+  font-size: 0.7rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.wallet-input-row { display: flex; gap: 10px; }
+.wallet-input-row input { flex: 1; font-family: var(--mono); font-size: 0.82rem; }
+.wallet-success {
+  font-size: 0.8rem;
+  color: var(--green);
+  background: rgba(16,185,129,0.07);
+  border: 1px solid rgba(16,185,129,0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+}

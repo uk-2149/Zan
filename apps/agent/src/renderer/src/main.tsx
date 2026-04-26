@@ -19,6 +19,7 @@ declare global {
       onJobAssigned: (cb: (job: any) => void) => () => void;
       onJobCancelled: (cb: (p: any) => void) => () => void;
       onWsStatus: (cb: (status: string) => void) => () => void;
+      updateWallet: (walletAddress: string) => Promise<any>;
     };
   }
 }

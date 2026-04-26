@@ -5,7 +5,13 @@ interface Props {
   provider: any;
   onAddMachine: () => void;
   onProviderUpdate: (p: any) => void;
+  onUserUpdate: (u: any) => void; // ← add this to Props
   onLogout: () => void;
+}
+
+interface WalletSectionProps {
+  walletAddress: string | null;
+  onWalletConnected: (address: string) => void;
 }
 
 export default function DashboardPage({
@@ -13,6 +19,7 @@ export default function DashboardPage({
   provider: initP,
   onAddMachine,
   onProviderUpdate,
+  onUserUpdate, // ← add this
   onLogout,
 }: Props) {
   const [provider, setProvider] = useState(initP);
@@ -73,10 +80,9 @@ export default function DashboardPage({
 
   return (
     <div className="dash-root">
-      {/* ── Sidebar ── */}
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <span className="logo-g">G</span>NET
+          <span className="logo-g">Z</span>AN
         </div>
         <nav className="sidebar-nav">
           <div className="nav-item active">
@@ -101,7 +107,6 @@ export default function DashboardPage({
         </div>
       </aside>
 
-      {/* ── Main ── */}
       <main className="dash-main">
         <div className="dash-header">
           <div>
@@ -122,7 +127,6 @@ export default function DashboardPage({
           )}
         </div>
 
-        {/* No machine */}
         {!provider ? (
           <div className="empty">
             <div className="empty-icon">
@@ -136,7 +140,6 @@ export default function DashboardPage({
           </div>
         ) : (
           <div className="dash-content">
-            {/* Machine card */}
             <div className="machine-card">
               <div className="mc-left">
                 <div className="gpu-icon">
@@ -182,9 +185,9 @@ export default function DashboardPage({
                 </button>
               </div>
             </div>
+
             {statusError && <div className="warn-box">{statusError}</div>}
 
-            {/* Active job */}
             {currentJob && (
               <div className="job-banner">
                 <div className="j-pulse" />
@@ -196,7 +199,6 @@ export default function DashboardPage({
               </div>
             )}
 
-            {/* Stats */}
             <div className="stats-grid">
               <StatCard
                 icon="◎"
@@ -228,7 +230,6 @@ export default function DashboardPage({
               />
             </div>
 
-            {/* Live metrics (only when online) */}
             {isOnline && (
               <div className="live-card">
                 <div className="card-head">
@@ -268,7 +269,6 @@ export default function DashboardPage({
               </div>
             )}
 
-            {/* Rate + tier progress */}
             <div className="bottom-row">
               <div className="info-card">
                 <span className="ic-label">Your rate</span>
@@ -284,6 +284,14 @@ export default function DashboardPage({
                 />
               </div>
             </div>
+
+            {/* Wallet section — passes onUserUpdate up to App */}
+            <WalletSection
+              walletAddress={user.walletAddress ?? null}
+              onWalletConnected={(addr) =>
+                onUserUpdate({ ...user, walletAddress: addr })
+              }
+            />
           </div>
         )}
       </main>
@@ -346,7 +354,98 @@ function TierBar({ tier, jobs }: { tier: number; jobs: number }) {
   );
 }
 
-// ── Icons ──────────────────────────────────────────────────────────
+function WalletSection({
+  walletAddress,
+  onWalletConnected,
+}: WalletSectionProps) {
+  const [input, setInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  const save = async () => {
+    if (!input.trim()) return;
+    setSaving(true);
+    setError("");
+    setSuccess(false);
+    const res = await window.api.updateWallet(input.trim());
+    if (res.success) {
+      setSuccess(true);
+      onWalletConnected(res.walletAddress);
+      setInput("");
+    } else {
+      setError(res.error ?? "Failed to save wallet");
+    }
+    setSaving(false);
+  };
+
+  if (walletAddress) {
+    return (
+      <div className="wallet-card connected">
+        <div className="wallet-card-left">
+          <div className="wallet-icon">◎</div>
+          <div>
+            <span className="wallet-label">Solana Wallet</span>
+            <span className="wallet-address">
+              {walletAddress.slice(0, 6)}...{walletAddress.slice(-6)}
+            </span>
+          </div>
+        </div>
+        <div className="wallet-connected-badge">✓ Connected</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="wallet-card">
+      <div className="wallet-card-header">
+        <div className="wallet-icon">◎</div>
+        <div>
+          <span className="wallet-label">Connect Solana Wallet</span>
+          <span className="wallet-sub">Required to receive payments</span>
+        </div>
+      </div>
+      <div className="wallet-steps">
+        <div className="wallet-step">
+          <span className="step-num">1</span>
+          <span>
+            Open <strong>Phantom</strong> or any Solana wallet
+          </span>
+        </div>
+        <div className="wallet-step">
+          <span className="step-num">2</span>
+          <span>Copy your wallet address</span>
+        </div>
+        <div className="wallet-step">
+          <span className="step-num">3</span>
+          <span>Paste it below</span>
+        </div>
+      </div>
+      <div className="wallet-input-row">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Enter your Solana wallet address"
+          onKeyDown={(e) => e.key === "Enter" && save()}
+        />
+        <button
+          className="btn-primary"
+          onClick={save}
+          disabled={saving || !input.trim()}
+        >
+          {saving ? <span className="spin" /> : "Connect"}
+        </button>
+      </div>
+      {error && <div className="err">{error}</div>}
+      {success && (
+        <div className="wallet-success">✓ Wallet connected successfully</div>
+      )}
+    </div>
+  );
+}
+
+// Icons
 const IGrid = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
     <rect x="3" y="3" width="7" height="7" rx="1" />

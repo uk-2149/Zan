@@ -49,6 +49,9 @@ contextBridge.exposeInMainWorld("api", {
     return () => ipcRenderer.removeListener("job-cancelled", handler);
   },
 
+  updateWallet: (walletAddress: string) =>
+    ipcRenderer.invoke("auth:update-wallet", { walletAddress }),
+
   onWsStatus: (cb: (status: "connected" | "disconnected") => void) => {
     const handler = (_: any, status: string) => cb(status as any);
     ipcRenderer.on("ws-status", handler);
