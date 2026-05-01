@@ -263,6 +263,12 @@ importers:
 
   packages/crypto:
     devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.4(jiti@2.6.1)
       typescript:
         specifier: ^5.0.0
         version: 5.9.3

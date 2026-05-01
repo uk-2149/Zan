@@ -19,6 +19,8 @@
     "lint": "eslint src/"
   },
   "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "eslint": "^9.39.1",
     "typescript": "^5.0.0"
   }
 }
