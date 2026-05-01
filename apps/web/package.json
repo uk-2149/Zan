@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",
+    "@repo/db": "workspace:*",
     "@repo/ui": "workspace:*",
     "@studio-freight/react-lenis": "^0.0.47",
     "@tailwindcss/postcss": "^4.2.2",
