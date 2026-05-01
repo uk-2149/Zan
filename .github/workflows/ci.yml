@@ -38,10 +38,11 @@ jobs:
         working-directory: packages/db
         run: pnpx prisma generate
 
+      - name: Create dummy DB env for build
+        run: echo 'DATABASE_URL=postgresql://ci:ci@localhost:5432/ci' > packages/db/.env
+
       - name: Build packages
         run: pnpm turbo run build --filter='!provider-agent'
-        env:
-          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
 
       - name: Lint
         run: pnpm turbo run lint --filter='!provider-agent'
