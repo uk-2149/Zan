@@ -128,6 +128,7 @@ function getShapePoint(step: number, index: number, total: number) {
 
 const ParticleMorpher = ({ activeStep }: { activeStep: number }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const particles = useRef<any[]>([]);
 
   useEffect(() => {

@@ -22,7 +22,7 @@ function CipherText({ text }: { text: string }) {
     if (!inView) return;
     let iteration = 0;
     const interval = setInterval(() => {
-      setDisplayText((prev) =>
+      setDisplayText(() =>
         text
           .split("")
           .map((letter, index) => {

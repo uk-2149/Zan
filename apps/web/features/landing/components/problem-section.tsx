@@ -12,7 +12,7 @@ import {
 
 const icons: LucideIcon[] = [CloudOff, ServerCrash, AlertOctagon];
 
-function ProblemCard({ card, index }: { card: any; index: number }) {
+function ProblemCard({ card, index }: { card: { id: string; title: string; description: string }; index: number }) {
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
 
@@ -22,7 +22,7 @@ function ProblemCard({ card, index }: { card: any; index: number }) {
     mouseY.set(clientY - top);
   }
 
-  const Icon = icons[index] as unknown as (props: any) => JSX.Element;
+  const Icon = icons[index] as unknown as (props: { className?: string }) => JSX.Element;
 
   return (
     <motion.div

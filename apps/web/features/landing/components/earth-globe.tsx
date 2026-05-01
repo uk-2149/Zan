@@ -13,6 +13,7 @@ const Globe = dynamic(() => import("react-globe.gl"), {
 });
 
 export function EarthGlobe() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const globeRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 1600, height: 1600 });
@@ -31,7 +32,7 @@ export function EarthGlobe() {
   useEffect(() => {
     if (!containerRef.current) return;
     const resizeObserver = new ResizeObserver((entries) => {
-      for (let entry of entries) {
+      for (const entry of entries) {
         setDimensions({
           width: entry.contentRect.width,
           height: entry.contentRect.height,

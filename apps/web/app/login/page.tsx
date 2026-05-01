@@ -164,7 +164,7 @@ export default function LoginPage(): React.JSX.Element {
           </button>
 
           <p className="mt-8 text-center text-white/40 text-sm">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link href="/register" className="text-brand-cyan hover:underline">
               Create one
             </Link>

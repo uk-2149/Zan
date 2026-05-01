@@ -12,7 +12,7 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
         touchMultiplier: 2,
       }}
     >
-      {children as any}
+      {children as React.ReactNode}
     </ReactLenis>
   );
 }
