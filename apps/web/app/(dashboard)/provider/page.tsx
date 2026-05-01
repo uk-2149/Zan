@@ -11,7 +11,7 @@ import {
   Layers,
 } from "lucide-react";
 
-export default function ProviderDashboard() {
+export default function ProviderDashboard(): React.JSX.Element {
   const [isOnline, setIsOnline] = useState(true);
 
   return (

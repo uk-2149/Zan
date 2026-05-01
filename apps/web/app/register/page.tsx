@@ -7,7 +7,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Mail, Lock, User, Loader2, ArrowRight, Eye, EyeOff } from "lucide-react";
 
-export default function RegisterPage() {
+export default function RegisterPage(): React.JSX.Element {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

@@ -6,7 +6,7 @@ import { ProcessSection } from "@/features/landing/components/process-section";
 import { WhyZanSection } from "@/features/landing/components/why-zan-section";
 import { SecuritySection } from "@/features/landing/components/security-section";
 
-export default function HomePage() {
+export default function HomePage(): React.JSX.Element {
   return (
     <div className="flex flex-col min-h-screen">
       <HeroSection />

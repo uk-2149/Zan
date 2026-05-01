@@ -38,7 +38,7 @@ const MOCK_JOBS = [
   },
 ];
 
-export default function ClientDashboard() {
+export default function ClientDashboard(): React.JSX.Element {
   return (
     <div className="min-h-screen bg-brand-dark pt-10 pb-24 relative overflow-hidden">
       {/*Background*/}

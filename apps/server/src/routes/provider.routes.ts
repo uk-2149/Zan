@@ -14,7 +14,7 @@ import { verifyJWT }      from '../middlewares/verifyJWT.js'
 import { verifyAgent }    from '../middlewares/verifyAgent.js'
 import { verifyInternal } from '../middlewares/verifyInternal.js'
 
-const providerRouter = Router()
+const providerRouter: Router = Router()
 
 // ── JWT protected (web + agent startup) ──
 providerRouter.post('/register',      verifyJWT, registerProvider)
