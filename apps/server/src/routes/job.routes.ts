@@ -8,7 +8,7 @@ import {
 } from "../controllers/job.controller.js";
 import { verifyJWT } from "../middlewares/verifyJWT.js";
 
-const jobRouter = Router();
+const jobRouter: Router = Router();
 
 jobRouter.use(verifyJWT);
 
