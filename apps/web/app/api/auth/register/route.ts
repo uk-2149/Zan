@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@repo/db";
 import bcrypt from "bcryptjs";
 
-export async function POST(req: Request) {
+export async function POST(req: Request): Promise<NextResponse> {
   try {
-    const { name, email, password } = await req.json();
+    const { name, email, password, role } = await req.json();
+    const selectedRole = role === "PROVIDER" ? "PROVIDER" : "CLIENT";
 
     if (!email || !password) {
       return NextResponse.json(
@@ -27,12 +28,16 @@ export async function POST(req: Request) {
         name,
         email,
         password: hashedPassword,
-        role: "CLIENT",
+        role: selectedRole,
       },
     });
 
     return NextResponse.json(
-      { message: "User created successfully", userId: user.id },
+      {
+        message: "User created successfully",
+        userId: user.id,
+        role: user.role,
+      },
       { status: 201 },
     );
   } catch (error) {

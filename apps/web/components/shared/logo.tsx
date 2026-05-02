@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { siteConfig } from "@/config/site";
+import type { ReactElement } from "react";
 
-export function Logo() {
+export function Logo(): ReactElement {
   return (
     <Link href="/" className="flex items-center gap-3 group">
       <div className="relative flex items-center justify-center size-4">

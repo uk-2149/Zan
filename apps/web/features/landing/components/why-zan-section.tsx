@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { ReactElement } from "react";
 import { motion, useInView, animate } from "framer-motion";
 import { LANDING_CONTENT } from "@/config/landing-content";
 import { Activity } from "lucide-react";
@@ -13,7 +14,7 @@ function Counter({
   from: number;
   to: number;
   suffix: string;
-}) {
+}): ReactElement {
   const nodeRef = useRef<HTMLSpanElement>(null);
   const inView = useInView(nodeRef, { once: true, margin: "-100px" });
 
@@ -40,7 +41,7 @@ function Counter({
   );
 }
 
-export function WhyZanSection() {
+export function WhyZanSection(): ReactElement {
   const { tagline, headline, subheadline, stats } = LANDING_CONTENT.whyZan;
 
   return (

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import type { ReactElement } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession, signOut } from "next-auth/react";
 import { Logo } from "./logo";
@@ -15,7 +16,7 @@ const NAV_LINKS = [
   { name: "Security", href: "#security" },
 ];
 
-export function Navbar() {
+export function Navbar(): ReactElement {
   const { data: session, status } = useSession();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);

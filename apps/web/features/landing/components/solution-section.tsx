@@ -3,8 +3,9 @@
 import { motion } from "framer-motion";
 import { LANDING_CONTENT } from "@/config/landing-content";
 import { Cpu, ShieldCheck, Box, Lock, Zap, ArrowRightLeft } from "lucide-react";
+import type { ReactElement } from "react";
 
-export function SolutionSection() {
+export function SolutionSection(): ReactElement {
   const { tagline, headline, subheadline, cards } = LANDING_CONTENT.solution;
   const hardwareCard = cards[0] ?? { title: "", description: "" };
   const escrowCard = cards[1] ?? { title: "", description: "" };

@@ -1,17 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Mail, Lock, User, Loader2, ArrowRight, Eye, EyeOff } from "lucide-react";
+import {
+  Mail,
+  Lock,
+  User,
+  Loader2,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Cpu,
+} from "lucide-react";
+
+type SignupRole = "CLIENT" | "PROVIDER";
 
 export default function RegisterPage(): React.JSX.Element {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [role, setRole] = useState<SignupRole>("CLIENT");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -26,7 +38,7 @@ export default function RegisterPage(): React.JSX.Element {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, role }),
     });
 
     const data = await res.json();
@@ -37,14 +49,25 @@ export default function RegisterPage(): React.JSX.Element {
       return;
     }
 
-    await signIn("credentials", { redirect: false, email, password });
-    router.push("/client");
+    const signInResult = await signIn("credentials", {
+      redirect: false,
+      email,
+      password,
+    });
+
+    if (signInResult?.error) {
+      setError("Account created, but sign in failed. Please sign in manually.");
+      setLoading(false);
+      return;
+    }
+
+    router.push(role === "PROVIDER" ? "/provider" : "/client");
   };
 
   return (
     <div className="min-h-screen bg-brand-dark flex items-center justify-center relative overflow-hidden px-6 pt-20">
       <div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-cyan/10 blur-[150px] rounded-full pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-150 h-150 bg-brand-cyan/10 blur-[150px] rounded-full pointer-events-none" />
 
       <motion.div
         initial={{ opacity: 0, y: 40 }}
@@ -53,7 +76,7 @@ export default function RegisterPage(): React.JSX.Element {
         className="w-full max-w-md relative z-10"
       >
         <div className="rounded-3xl border border-white/10 bg-brand-gray/50 backdrop-blur-2xl p-10 shadow-2xl relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-cyan to-transparent opacity-50" />
+          <div className="absolute top-0 left-0 w-full h-px bg-linear-to-r from-transparent via-brand-cyan to-transparent opacity-50" />
 
           <div className="text-center mb-10">
             <h1 className="text-3xl font-bold tracking-tight text-white mb-2">
@@ -70,6 +93,39 @@ export default function RegisterPage(): React.JSX.Element {
                 {error}
               </div>
             )}
+
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                {
+                  value: "CLIENT" as const,
+                  label: "Client",
+                  Icon: User,
+                },
+                {
+                  value: "PROVIDER" as const,
+                  label: "Provider",
+                  Icon: Cpu,
+                },
+              ].map(({ value, label, Icon }) => {
+                const isSelected = role === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setRole(value)}
+                    className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-sm font-bold transition-all ${
+                      isSelected
+                        ? "border-brand-cyan bg-brand-cyan/10 text-brand-cyan"
+                        : "border-white/10 bg-black/30 text-white/50 hover:border-white/20 hover:text-white"
+                    }`}
+                    aria-pressed={isSelected}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
 
             <div className="relative">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />

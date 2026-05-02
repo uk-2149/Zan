@@ -2,8 +2,9 @@ import Link from "next/link";
 import { LANDING_CONTENT } from "@/config/landing-content";
 import { ArrowRight, Cpu } from "lucide-react";
 import { EarthGlobe } from "./earth-globe";
+import type { ReactElement } from "react";
 
-export function HeroSection() {
+export function HeroSection(): ReactElement {
   const { badge, headline, subheadline, ctaPrimary, ctaSecondary } =
     LANDING_CONTENT.hero;
   const [line1, line2] = headline.split("\n");

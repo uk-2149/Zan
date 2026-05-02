@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { siteConfig } from "@/config/site";
 import { Logo } from "./logo";
 import { ArrowRight, Disc } from "lucide-react";
+import type { ReactElement } from "react";
 
 const FOOTER_LINKS = {
   Platform: ["Compute Dashboard", "List GPU Node", "Pricing", "Documentation"],
@@ -43,7 +44,7 @@ const XIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-export function Footer() {
+export function Footer(): ReactElement {
   return (
     <footer className="relative bg-brand-dark pt-32 overflow-hidden border-t border-white/5">
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-brand-cyan/5 blur-[150px] rounded-t-full pointer-events-none" />

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
+import React, { useState } from "react";
+import { getSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -33,7 +33,8 @@ export default function LoginPage(): React.JSX.Element {
       setError("Invalid email or password");
       setLoading(false);
     } else {
-      router.push("/client");
+      const session = await getSession();
+      router.push(session?.user.role === "PROVIDER" ? "/provider" : "/client");
     }
   };
 
@@ -45,7 +46,7 @@ export default function LoginPage(): React.JSX.Element {
   return (
     <div className="min-h-screen bg-brand-dark flex items-center justify-center relative overflow-hidden px-6 pt-20">
       <div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-cyan/10 blur-[150px] rounded-full pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-150 h-150 bg-brand-cyan/10 blur-[150px] rounded-full pointer-events-none" />
 
       <motion.div
         initial={{ opacity: 0, y: 40 }}
@@ -55,7 +56,7 @@ export default function LoginPage(): React.JSX.Element {
       >
         <div className="rounded-3xl border border-white/10 bg-brand-gray/50 backdrop-blur-2xl p-10 shadow-2xl relative overflow-hidden group">
           {/* Laser Edge on top */}
-          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-brand-cyan to-transparent opacity-50" />
+          <div className="absolute top-0 left-0 w-full h-px bg-linear-to-r from-transparent via-brand-cyan to-transparent opacity-50" />
 
           <div className="text-center mb-10">
             <h1 className="text-3xl font-bold tracking-tight text-white mb-2">

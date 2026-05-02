@@ -1,6 +1,7 @@
 import { LANDING_CONTENT } from "@/config/landing-content";
+import type { ReactElement } from "react";
 
-export function TickerSection() {
+export function TickerSection(): ReactElement {
   // Combine existing with more items
   const items = [
     ...LANDING_CONTENT.ticker,
