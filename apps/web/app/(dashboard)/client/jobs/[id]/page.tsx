@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Clock,
 } from "lucide-react";
+import { api } from "@/lib/api";
 
 // QUEUED and REFUNDED don't exist in the current generated Prisma client.
 // Cancelled jobs become FAILED with escrow.status = 'RELEASED'.
@@ -143,19 +144,14 @@ export default function JobDetailPage(): React.ReactElement {
 
   const fetchJob = useCallback(async () => {
     try {
-      const res = await fetch(`/api/jobs/${jobId}`);
-      if (res.status === 404 || res.status === 403) {
+      const data = await api.get(`/api/jobs/${jobId}`);
+      setJob(data.job);
+    } catch (err: any) {
+      if (err.message.includes("404") || err.message.includes("403")) {
         router.push("/client");
         return;
       }
-      if (!res.ok) {
-        setFetchError("Failed to load job.");
-        return;
-      }
-      const data = await res.json();
-      setJob(data.job);
-    } catch {
-      setFetchError("Network error. Retrying…");
+      setFetchError("Failed to load job.");
     } finally {
       setLoading(false);
     }
@@ -175,8 +171,8 @@ export default function JobDetailPage(): React.ReactElement {
     if (!job || !CANCELLABLE.has(job.status)) return;
     setCancelling(true);
     try {
-      const res = await fetch(`/api/jobs/${jobId}`, { method: "PATCH" });
-      if (res.ok) await fetchJob();
+      await api.patch(`/api/jobs/${jobId}/cancel`, {});
+      await fetchJob();
     } finally {
       setCancelling(false);
     }

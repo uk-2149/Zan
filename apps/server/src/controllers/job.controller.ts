@@ -1,40 +1,28 @@
 import type { Request, Response } from "express";
 import { prisma } from "@repo/db";
 import { enqueueJob } from "../queues/jobQueue.js";
+import { JOB_TYPES } from "../config/jobTypes.js";
+import type { JobTypeKey } from "../config/jobTypes.js";
 
-const ALLOWED_TYPES = [
-  "inference", "training", "fine-tune", "embedding",
-  "render", "image-gen", "video-gen", "pipeline",
-] as const;
-type JobType = (typeof ALLOWED_TYPES)[number];
-
-// FUNDED = job is funded and waiting for the matchmaker to pick it up.
-// Cancel sets status to FAILED; escrow release is tracked via status: 'RELEASED'.
-const CANCELLABLE_STATUSES = new Set(["CREATED", "FUNDED"]);
-
-// Submit job
+// submitJob
 export const submitJob = async (req: Request, res: Response) => {
   const clientId = (req as any).user.id;
-  const { title, type, inputUri, budget, escrowTxSig, requiredVramGB, requiredGpuTier } = req.body;
+  const {
+    title,
+    type,
+    dockerImage,
+    inputUri,
+    jobParams,
+    requiredVramGB,
+    budget,
+    stakeSignature,
+    timeLimitSecs,
+  } = req.body;
 
-  if (
-    !title?.trim() ||
-    !type ||
-    !inputUri?.trim() ||
-    !budget ||
-    !escrowTxSig?.trim()
-  ) {
-    return res
-      .status(400)
-      .json({
-        error: "title, type, inputUri, budget, and escrowTxSig are required",
-      });
-  }
-
-  if (!ALLOWED_TYPES.includes(type as JobType)) {
-    return res
-      .status(400)
-      .json({ error: `type must be one of: ${ALLOWED_TYPES.join(", ")}` });
+  if (!title?.trim() || !type || !dockerImage?.trim() || !inputUri?.trim() || !jobParams || !budget || !stakeSignature?.trim()) {
+    return res.status(400).json({
+      error: "title, type, dockerImage, inputUri, jobParams, budget, and stakeSignature are required",
+    });
   }
 
   const budgetNum = Number(budget);
@@ -47,13 +35,15 @@ export const submitJob = async (req: Request, res: Response) => {
       const newJob = await tx.job.create({
         data: {
           clientId,
-          title:           title.trim(),
+          title: title.trim(),
           type,
-          inputUri:        inputUri.trim(),
-          budget:          budgetNum,
-          status:          "FUNDED",
-          requiredGpuTier: requiredGpuTier ? Number(requiredGpuTier) : 0,
-          ...(requiredVramGB ? { requiredVramGB: Number(requiredVramGB) } : {}),
+          dockerImage: dockerImage.trim(),
+          inputUri: inputUri.trim(),
+          jobParams,
+          budget: budgetNum,
+          status: "FUNDED",
+          requiredVramGB: requiredVramGB ? Number(requiredVramGB) : 4,
+          timeLimitSecs: timeLimitSecs ? Number(timeLimitSecs) : 3600,
         },
       });
 
@@ -62,7 +52,7 @@ export const submitJob = async (req: Request, res: Response) => {
           jobId: newJob.id,
           amount: budgetNum,
           token: "SOL",
-          depositTxSig: escrowTxSig.trim(),
+          depositTxSig: stakeSignature.trim(),
           status: "LOCKED",
         },
       });
@@ -87,45 +77,9 @@ export const submitJob = async (req: Request, res: Response) => {
   }
 };
 
-// List client jobs
-export const listClientJobs = async (req: Request, res: Response) => {
-  const clientId = (req as any).user.id;
-
-  const page = Math.max(1, Number(req.query.page) || 1);
-  const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
-  const skip = (page - 1) * limit;
-
-  try {
-    const [jobs, total] = await prisma.$transaction([
-      prisma.job.findMany({
-        where: { clientId },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: limit,
-        select: {
-          id: true,
-          title: true,
-          type: true,
-          status: true,
-          budget: true,
-          createdAt: true,
-          provider: { select: { gpuModel: true, location: true } },
-          escrow: { select: { status: true, amount: true } },
-        },
-      }),
-      prisma.job.count({ where: { clientId } }),
-    ]);
-
-    res.json({ jobs, total, page, limit });
-  } catch (err) {
-    console.error("[listClientJobs]", err);
-    res.status(500).json({ error: "Failed to fetch jobs" });
-  }
-};
-
-// Get single job
-export const getJob = async (req: Request, res: Response) => {
-  const clientId = (req as any).user.id;
+// getJobById
+export const getJobById = async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
   const jobId = String(req.params.id);
 
   try {
@@ -141,17 +95,186 @@ export const getJob = async (req: Request, res: Response) => {
     });
 
     if (!job) return res.status(404).json({ error: "Job not found" });
-    if (job.clientId !== clientId)
+    
+    // Security: only return job if req.user.id === job.clientId or assigned provider
+    // Wait, getJobById requires JWT auth (so it's a User, not a Provider Agent)
+    // To check if the user is the assigned provider, we'd need to fetch their provider record.
+    // The spec says: Security: only return job if req.user.id === job.clientId (providers can also see their own assigned jobs)
+    
+    let isProvider = false;
+    if (job.providerId) {
+      const provider = await prisma.provider.findFirst({ where: { id: job.providerId, userId: userId }});
+      if (provider) isProvider = true;
+    }
+
+    if (job.clientId !== userId && !isProvider) {
       return res.status(403).json({ error: "Not your job" });
+    }
 
     res.json({ job });
   } catch (err) {
-    console.error("[getJob]", err);
+    console.error("[getJobById]", err);
     res.status(500).json({ error: "Failed to fetch job" });
   }
 };
 
-// Cancel job
+// getMyJobs
+export const getMyJobs = async (req: Request, res: Response) => {
+  const clientId = (req as any).user.id;
+
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const limit = 20;
+  const skip = (page - 1) * limit;
+
+  try {
+    const [jobs, total] = await prisma.$transaction([
+      prisma.job.findMany({
+        where: { clientId },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          status: true,
+          budget: true,
+          finalCost: true,
+          createdAt: true,
+          completedAt: true,
+        },
+      }),
+      prisma.job.count({ where: { clientId } }),
+    ]);
+
+    res.json({ jobs, total, page, limit });
+  } catch (err) {
+    console.error("[getMyJobs]", err);
+    res.status(500).json({ error: "Failed to fetch jobs" });
+  }
+};
+
+// jobComplete
+export const jobComplete = async (req: Request, res: Response) => {
+  const providerId = (req as any).provider.id;
+  const jobId = String(req.params.id);
+  const { outputUri, executionMetadata, success, errorMessage } = req.body;
+
+  try {
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { providerId: true, retryCount: true, maxRetries: true, status: true },
+    });
+
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    if (job.providerId !== providerId) {
+      return res.status(403).json({ error: "Not your assigned job" });
+    }
+    if (job.status !== "RUNNING" && job.status !== "ASSIGNED") {
+      return res.status(400).json({ error: `Cannot complete job in ${job.status} state` });
+    }
+
+    if (success) {
+      // TODO: trigger verification system here
+      // For now just mark completed and release payment
+      await prisma.job.update({
+        where: { id: jobId },
+        data: { 
+          status: 'COMPLETED',
+          outputUri,
+          executionMetadata,
+          completedAt: new Date()
+        }
+      });
+
+      // TODO: call Anchor escrow release instruction here
+      // For now just update escrow status in DB
+      await prisma.escrow.update({
+        where: { jobId },
+        data: { status: 'RELEASED', releasedAt: new Date() }
+      });
+
+      await prisma.jobEvent.create({
+        data: {
+          jobId,
+          type: "COMPLETED",
+          metadata: { providerId, outputUri },
+        },
+      });
+
+    } else {
+      const newRetryCount = job.retryCount + 1;
+      const isPermanentFail = newRetryCount >= job.maxRetries;
+      
+      const newStatus = isPermanentFail ? "FAILED" : "FUNDED";
+
+      await prisma.job.update({
+        where: { id: jobId },
+        data: {
+          status: newStatus,
+          retryCount: newRetryCount,
+          executionMetadata: executionMetadata || { error: errorMessage },
+          completedAt: isPermanentFail ? new Date() : null,
+          providerId: isPermanentFail ? job.providerId : null // clear provider if we push back to queue
+        },
+      });
+
+      if (isPermanentFail) {
+        await prisma.escrow.update({
+          where: { jobId },
+          data: { status: 'REFUNDED', refundedAt: new Date() } // Refund client if fails permanently
+        });
+      } else {
+        await enqueueJob(jobId);
+      }
+
+      await prisma.jobEvent.create({
+        data: {
+          jobId,
+          type: isPermanentFail ? "FAILED" : "RETRY",
+          metadata: { providerId, error: errorMessage, retryCount: newRetryCount },
+        },
+      });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[jobComplete]", err);
+    res.status(500).json({ error: "Job completion failed" });
+  }
+};
+
+// updateJobStatus (internal matchmaker)
+export const updateJobStatus = async (req: Request, res: Response) => {
+  const jobId = String(req.params.id);
+  const { status, providerId } = req.body;
+
+  try {
+    const updateData: any = { status };
+    if (status === "ASSIGNED" && providerId) {
+      updateData.providerId = providerId;
+      updateData.startedAt = new Date();
+    }
+
+    await prisma.$transaction([
+      prisma.job.update({ where: { id: jobId }, data: updateData }),
+      prisma.jobEvent.create({
+        data: {
+          jobId,
+          type: "STATUS_UPDATE",
+          metadata: { status, providerId },
+        },
+      }),
+    ]);
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[updateJobStatus]", err);
+    res.status(500).json({ error: "Failed to update status" });
+  }
+};
+
+// cancelJob
 export const cancelJob = async (req: Request, res: Response) => {
   const clientId = (req as any).user.id;
   const jobId = String(req.params.id);
@@ -166,7 +289,7 @@ export const cancelJob = async (req: Request, res: Response) => {
     if (job.clientId !== clientId)
       return res.status(403).json({ error: "Not your job" });
 
-    if (!CANCELLABLE_STATUSES.has(job.status)) {
+    if (job.status !== "CREATED" && job.status !== "FUNDED") {
       return res
         .status(409)
         .json({ error: `Cannot cancel a job in ${job.status} state` });
@@ -187,32 +310,5 @@ export const cancelJob = async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[cancelJob]", err);
     res.status(500).json({ error: "Cancel failed" });
-  }
-};
-
-// Job Events (audit trail)
-export const getJobEvents = async (req: Request, res: Response) => {
-  const clientId = (req as any).user.id;
-  const jobId = String(req.params.id);
-
-  try {
-    const job = await prisma.job.findUnique({
-      where: { id: jobId },
-      select: { clientId: true },
-    });
-
-    if (!job) return res.status(404).json({ error: "Job not found" });
-    if (job.clientId !== clientId)
-      return res.status(403).json({ error: "Not your job" });
-
-    const events = await prisma.jobEvent.findMany({
-      where: { jobId },
-      orderBy: { createdAt: "asc" },
-    });
-
-    res.json({ events });
-  } catch (err) {
-    console.error("[getJobEvents]", err);
-    res.status(500).json({ error: "Failed to fetch events" });
   }
 };

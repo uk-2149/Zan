@@ -15,6 +15,7 @@ import {
   ArrowRight,
   AlertCircle,
 } from "lucide-react";
+import { api } from "@/lib/api";
 
 // FUNDED = job is waiting for the matchmaker (in queue).
 // Cancelled jobs become FAILED.
@@ -80,19 +81,21 @@ function statusColors(s: JobStatus): string {
 }
 
 export default function ClientDashboard(): React.JSX.Element {
-  useSession({ required: true });
+  const { data: session } = useSession({ required: true });
   const router = useRouter();
+
+  useEffect(() => {
+    if (session?.user && (session.user as any).role === "PROVIDER") {
+      router.push("/provider");
+    }
+  }, [session, router]);
 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
-    fetch("/api/jobs?limit=10")
-      .then((r) => {
-        if (!r.ok) throw new Error();
-        return r.json();
-      })
+    api.get("/api/jobs/my-jobs?limit=10")
       .then((d) => setJobs(d.jobs ?? []))
       .catch(() => setFetchError(true))
       .finally(() => setLoading(false));

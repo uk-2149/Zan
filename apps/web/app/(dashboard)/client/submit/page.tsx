@@ -10,6 +10,7 @@ import {
   AlertCircle, Lock, ShieldCheck, CheckCircle2, FileText,
   Database, Film, Activity, Image as ImageIcon, Clock, Sparkles,
 } from "lucide-react";
+import { api } from "@/lib/api";
 
 //Job type definitions
 const JOB_TYPE_DEFS = [
@@ -210,35 +211,46 @@ export default function SubmitJobPage(): React.ReactElement {
       return;
     }
     setSubmitting(true);
-    const escrowTxSig = `dev_${crypto.randomUUID()}`;
+    const stakeSignature = `dev_${crypto.randomUUID()}`; // TODO: replace with real Anchor tx
+    
+    // Resolve dockerImage and timeLimitSecs based on job type for the MVP
+    let dockerImage = "gnet/custom:latest";
+    let timeLimitSecs = 3600;
+    
+    if (jobType === "render") {
+      dockerImage = "gnet/blender:4.1";
+      timeLimitSecs = 7200;
+    } else if (jobType === "image-gen") {
+      dockerImage = "gnet/stable-diffusion:1.5";
+      timeLimitSecs = 300;
+    } else if (jobType === "video-gen") {
+      dockerImage = "gnet/ffmpeg:6.0";
+      timeLimitSecs = 1800;
+    }
+
     try {
-      const res = await fetch("/api/jobs", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title:           title.trim(),
-          type:            jobType,
-          inputUri:        inputUri.trim(),
-          budget:          budgetNum,
-          requiredVramGB:  requiredVram ? Number(requiredVram) : undefined,
-          requiredGpuTier: gpuTier,
-          escrowTxSig,
-          metadata: {
-            framework: effectiveFw || undefined,
-            duration,
-            priority,
-            notes: notes.trim() || undefined,
-          },
-        }),
+      const data = await api.post("/api/jobs/submit", {
+        title:           title.trim(),
+        type:            jobType,
+        dockerImage,
+        inputUri:        inputUri.trim(),
+        jobParams:       { framework: effectiveFw, notes, priority },
+        budget:          budgetNum,
+        requiredVramGB:  requiredVram ? Number(requiredVram) : undefined,
+        requiredGpuTier: gpuTier,
+        stakeSignature,
+        timeLimitSecs,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Something went wrong. Please try again.");
-        return;
-      }
       router.push(`/client/jobs/${data.jobId}`);
-    } catch {
-      setError("Network error. Please check your connection and try again.");
+    } catch (err: any) {
+      let msg = "Network error. Please check your connection and try again.";
+      try {
+         const parsed = JSON.parse(err.message);
+         if (parsed.error) msg = parsed.error;
+      } catch {
+         // Keep default
+      }
+      setError(msg);
     } finally {
       setSubmitting(false);
     }

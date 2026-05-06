@@ -95,16 +95,18 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  walletAddress String?   @unique
-  role          UserRole  @default(CLIENT)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  name              String?
+  email             String?   @unique
+  emailVerified     DateTime?
+  image             String?
+  password          String?
+  walletAddress     String?   @unique
+  walletNonce       String?
+  walletNonceExpiry DateTime?
+  role              UserRole  @default(CLIENT)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   accounts Account[]
   sessions Session[]
@@ -252,17 +254,20 @@ model Job {
   verificationProvider   Provider? @relation("VerificationProviderJobs", fields: [verificationProviderId], references: [id])
 
   // ── Job definition ──
-  title    String
-  type     String    // "inference" | "render" | "training"
-  inputUri String
-  outputUri String?
+  title         String
+  type          String    // "inference" | "render" | "training"
+  dockerImage   String    // "gnet/blender:4.1" — which Docker image to run
+  inputUri      String
+  outputUri     String?
+  jobParams     Json
 
   // Verification provider's output (to compare against primary)
   verificationOutputUri String?
 
   // ── Requirements (matchmaker uses these) ──
-  requiredVramGB  Int?
+  requiredVramGB  Int  @default(4)
   requiredGpuTier Int  @default(0)
+  timeLimitSecs   Int  @default(3600)
 
   // ── Pricing ──
   budget    Decimal

@@ -4,6 +4,7 @@ import "./globals.css";
 import { Navbar } from "@/components/shared/navbar";
 import { Footer } from "@/components/shared/footer";
 import { AuthProvider } from "@/components/shared/auth-provider";
+import { WalletProvider } from "@/components/shared/wallet-provider";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -41,9 +42,11 @@ export default function RootLayout({
         `}
       >
         <AuthProvider>
-          <Navbar />
-          <main className="flex-1 pt-16">{children}</main>
-          <Footer />
+          <WalletProvider>
+            <Navbar />
+            <main className="flex-1 pt-16">{children}</main>
+            <Footer />
+          </WalletProvider>
         </AuthProvider>
       </body>
     </html>

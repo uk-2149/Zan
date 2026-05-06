@@ -38,7 +38,7 @@ exports.signMessage = signMessage;
 exports.verifySignature = verifySignature;
 exports.buildMessage = buildMessage;
 // packages/crypto/src/index.ts
-const crypto = __importStar(require("crypto"));
+const crypto = __importStar(require("node:crypto"));
 // Generate keypair for agent (called once on first install)
 function generateAgentKeypair() {
     const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519', {

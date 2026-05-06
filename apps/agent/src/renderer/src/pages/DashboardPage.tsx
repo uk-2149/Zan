@@ -5,13 +5,11 @@ interface Props {
   provider: any;
   onAddMachine: () => void;
   onProviderUpdate: (p: any) => void;
-  onUserUpdate: (u: any) => void; // ← add this to Props
   onLogout: () => void;
 }
 
 interface WalletSectionProps {
   walletAddress: string | null;
-  onWalletConnected: (address: string) => void;
 }
 
 export default function DashboardPage({
@@ -19,7 +17,6 @@ export default function DashboardPage({
   provider: initP,
   onAddMachine,
   onProviderUpdate,
-  onUserUpdate, // ← add this
   onLogout,
 }: Props) {
   const [provider, setProvider] = useState(initP);
@@ -128,15 +125,33 @@ export default function DashboardPage({
         </div>
 
         {!provider ? (
-          <div className="empty">
-            <div className="empty-icon">
-              <IMonitor />
+          <div className="empty" style={{ gap: 32 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+              <div className="empty-icon">
+                <IMonitor />
+              </div>
+              <h2>No machine registered</h2>
+              <p>Add your GPU to start earning SOL from compute jobs</p>
             </div>
-            <h2>No machine registered</h2>
-            <p>Add your GPU to start earning SOL from compute jobs</p>
-            <button className="btn-primary" onClick={onAddMachine}>
-              + Add this machine
-            </button>
+
+            <div style={{ width: "100%", maxWidth: 480, display: "flex", flexDirection: "column", gap: 24, textAlign: "left" }}>
+              <WalletSection
+                walletAddress={user.walletAddress ?? null}
+              />
+              <button 
+                className="btn-primary" 
+                onClick={onAddMachine}
+                disabled={!user.walletAddress}
+                style={{ 
+                  opacity: user.walletAddress ? 1 : 0.5, 
+                  cursor: user.walletAddress ? "pointer" : "not-allowed",
+                  alignSelf: "center",
+                  padding: "12px 32px"
+                }}
+              >
+                + Add this machine
+              </button>
+            </div>
           </div>
         ) : (
           <div className="dash-content">
@@ -288,9 +303,6 @@ export default function DashboardPage({
             {/* Wallet section — passes onUserUpdate up to App */}
             <WalletSection
               walletAddress={user.walletAddress ?? null}
-              onWalletConnected={(addr) =>
-                onUserUpdate({ ...user, walletAddress: addr })
-              }
             />
           </div>
         )}
@@ -356,27 +368,25 @@ function TierBar({ tier, jobs }: { tier: number; jobs: number }) {
 
 function WalletSection({
   walletAddress,
-  onWalletConnected,
 }: WalletSectionProps) {
-  const [input, setInput] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const save = async () => {
-    if (!input.trim()) return;
-    setSaving(true);
-    setError("");
-    setSuccess(false);
-    const res = await window.api.updateWallet(input.trim());
-    if (res.success) {
-      setSuccess(true);
-      onWalletConnected(res.walletAddress);
-      setInput("");
-    } else {
-      setError(res.error ?? "Failed to save wallet");
-    }
-    setSaving(false);
+  const openWalletWeb = async () => {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const url = await window.api.getVerifyUrl();
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    window.api.openExternal(url);
+  };
+
+  const copyUrl = async () => {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const url = await window.api.getVerifyUrl();
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   if (walletAddress) {
@@ -401,46 +411,36 @@ function WalletSection({
       <div className="wallet-card-header">
         <div className="wallet-icon">◎</div>
         <div>
-          <span className="wallet-label">Connect Solana Wallet</span>
+          <span className="wallet-label">Verify Solana Wallet</span>
           <span className="wallet-sub">Required to receive payments</span>
         </div>
       </div>
       <div className="wallet-steps">
         <div className="wallet-step">
           <span className="step-num">1</span>
-          <span>
-            Open <strong>Phantom</strong> or any Solana wallet
-          </span>
+          <span>Click the button below to open your browser</span>
         </div>
         <div className="wallet-step">
           <span className="step-num">2</span>
-          <span>Copy your wallet address</span>
+          <span>Connect Phantom and sign the verification message</span>
         </div>
         <div className="wallet-step">
           <span className="step-num">3</span>
-          <span>Paste it below</span>
+          <span>Refresh this app after successful verification</span>
         </div>
       </div>
-      <div className="wallet-input-row">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Enter your Solana wallet address"
-          onKeyDown={(e) => e.key === "Enter" && save()}
-        />
-        <button
-          className="btn-primary"
-          onClick={save}
-          disabled={saving || !input.trim()}
+      <div className="wallet-input-row" style={{ justifyContent: "flex-start", marginTop: 12, gap: 12, display: "flex" }}>
+        <button className="btn-primary" onClick={openWalletWeb}>
+          Verify Wallet in Browser ↗
+        </button>
+        <button 
+          className="btn-secondary" 
+          onClick={copyUrl}
+          style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '0 16px', borderRadius: 8, cursor: 'pointer' }}
         >
-          {saving ? <span className="spin" /> : "Connect"}
+          {copied ? "✓ Copied" : "Copy Link"}
         </button>
       </div>
-      {error && <div className="err">{error}</div>}
-      {success && (
-        <div className="wallet-success">✓ Wallet connected successfully</div>
-      )}
     </div>
   );
 }

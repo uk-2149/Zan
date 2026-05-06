@@ -1,22 +1,15 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "@repo/db";
-import bcrypt from "bcryptjs";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
   // We use JWT because we need to pass tokens to the Express backend later
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
   },
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
     CredentialsProvider({
       name: "Email and Password",
       credentials: {
@@ -32,35 +25,26 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Missing credentials");
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-          select: {
-            id: true,
-            email: true,
-            password: true,
-            name: true,
-            role: true,
-          },
+        const res = await fetch(`${API_URL}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: credentials.email,
+            password: credentials.password,
+          }),
         });
 
-        if (!user || !user.password) {
-          throw new Error("User not found or uses Google Login");
+        if (!res.ok) {
+          throw new Error("Invalid credentials");
         }
 
-        const isValidPassword = await bcrypt.compare(
-          credentials.password,
-          user.password,
-        );
-
-        if (!isValidPassword) {
-          throw new Error("Invalid password");
-        }
-
+        const data = await res.json();
         return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
+          id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
+          role: data.user.role,
+          token: data.token,
         };
       },
     }),
@@ -69,7 +53,8 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as { role: string }).role;
+        token.role = (user as { role?: string }).role;
+        token.accessToken = (user as { token?: string }).token;
       }
       return token;
     },
@@ -78,6 +63,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
       }
+      (session as any).accessToken = token.accessToken;
       return session;
     },
   },

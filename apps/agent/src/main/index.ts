@@ -313,3 +313,10 @@ ipcMain.handle("provider:get-stats", async () => {
 });
 
 ipcMain.handle("store:get", (_, key: string) => store.get(key as any));
+
+ipcMain.handle("app:open-external", (_, url: string) => shell.openExternal(url));
+
+ipcMain.handle("app:get-verify-url", () => {
+  const token = store.get("token");
+  return `http://localhost:3000/wallet?token=${token}`;
+});

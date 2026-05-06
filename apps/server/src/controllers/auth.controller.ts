@@ -4,6 +4,10 @@ import { prisma } from '@repo/db'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { requireEnv } from '../env.js'
+import crypto from 'crypto'
+import { PublicKey } from '@solana/web3.js'
+import bs58 from 'bs58'
+import nacl from 'tweetnacl'
 
 function signToken(userId: string) {
   return jwt.sign({ userId }, requireEnv('JWT_SECRET'), { expiresIn: '30d' })
@@ -23,7 +27,7 @@ export const registerUser = async (req: Request, res: Response) => {
     const hashed = await bcrypt.hash(password, 12)
     const user = await prisma.user.create({
       data: { name, email, password: hashed, role: 'PROVIDER' },
-      select: { id: true, name: true, email: true, role: true }
+      select: { id: true, name: true, email: true, role: true, walletAddress: true }
     })
 
     const token = signToken(user.id)
@@ -54,7 +58,7 @@ export const loginUser = async (req: Request, res: Response) => {
     res.json({
       token,
       userId: user.id,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, walletAddress: user.walletAddress }
     })
   } catch (err) {
     console.error(err)
@@ -76,21 +80,63 @@ export const getMe = async (req: Request, res: Response) => {
   }
 }
 
+export const getWalletChallenge = async (req: Request, res: Response) => {
+  const userId = (req as any).user.id
+  
+  const nonce = crypto.randomBytes(32).toString('hex')
+  const message = `Zan wallet verification\nNonce: ${nonce}\nTimestamp: ${Date.now()}`
+  
+  await prisma.user.update({
+    where: { id: userId },
+    data: { 
+      walletNonce: nonce,
+      walletNonceExpiry: new Date(Date.now() + 5 * 60 * 1000)
+    }
+  })
+  
+  res.json({ message, nonce })
+}
+
 export const updateWallet = async (req: Request, res: Response) => {
   const userId = (req as any).user.id
-  const { walletAddress } = req.body
+  const { walletAddress, signature, message } = req.body
 
-  if (!walletAddress) {
-    return res.status(400).json({ error: 'walletAddress required' })
+  if (!walletAddress || !signature || !message) {
+    return res.status(400).json({ error: 'walletAddress, signature and message required' })
   }
 
-  const solanaAddressRegex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
-  if (!solanaAddressRegex.test(walletAddress)) {
-    return res.status(400).json({ error: 'Invalid Solana address format' })
+  const user = await prisma.user.findUnique({ 
+    where: { id: userId },
+    select: { walletNonce: true, walletNonceExpiry: true }
+  })
+
+  if (!user?.walletNonce || !user.walletNonceExpiry || user.walletNonceExpiry < new Date()) {
+    return res.status(400).json({ error: 'Challenge expired — request a new one' })
+  }
+
+  if (!message.includes(user.walletNonce)) {
+    return res.status(400).json({ error: 'Invalid challenge message' })
   }
 
   try {
-    // Check not already taken by another user
+    const publicKey = new PublicKey(walletAddress)
+    const signatureBytes = bs58.decode(signature)
+    const messageBytes = new TextEncoder().encode(message)
+    
+    const valid = nacl.sign.detached.verify(
+      messageBytes,
+      signatureBytes,
+      publicKey.toBytes()
+    )
+
+    if (!valid) {
+      return res.status(401).json({ error: 'Signature verification failed' })
+    }
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid wallet address or signature' })
+  }
+
+  try {
     const existing = await prisma.user.findFirst({
       where: { walletAddress, NOT: { id: userId } }
     })
@@ -98,13 +144,17 @@ export const updateWallet = async (req: Request, res: Response) => {
       return res.status(409).json({ error: 'Wallet already linked to another account' })
     }
 
-    const user = await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: { walletAddress },
+      data: { 
+        walletAddress,
+        walletNonce: null,
+        walletNonceExpiry: null
+      },
       select: { id: true, name: true, email: true, walletAddress: true }
     })
 
-    res.json({ success: true, user })
+    res.json({ success: true, user: updatedUser })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Failed to update wallet' })

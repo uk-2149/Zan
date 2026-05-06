@@ -1,5 +1,5 @@
 // packages/crypto/src/index.ts
-import * as crypto from 'crypto'
+import * as crypto from 'node:crypto'
 
 // Generate keypair for agent (called once on first install)
 export function generateAgentKeypair() {

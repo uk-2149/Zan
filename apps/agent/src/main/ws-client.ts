@@ -1,6 +1,7 @@
 import WebSocket from "ws";
 import { store } from "./store";
 import { BrowserWindow } from "electron";
+import { runJob, type JobPayload } from "./job-runner";
 
 let ws: WebSocket | null = null;
 let reconnectTimer: NodeJS.Timeout | null = null;
@@ -15,6 +16,7 @@ export function connectWebSocket(win: BrowserWindow | null) {
   const wsUrl = baseUrl
     .replace("http://", "ws://")
     .replace("https://", "wss://");
+
   ws = new WebSocket(`${wsUrl}/ws?providerId=${providerId}`);
 
   ws.on("open", () => {
@@ -29,21 +31,44 @@ export function connectWebSocket(win: BrowserWindow | null) {
   ws.on("message", (data) => {
     try {
       const msg = JSON.parse(data.toString());
+
       switch (msg.type) {
-        case "JOB_ASSIGNED":
-          store.set("currentJobId", msg.payload.jobId);
-          mainWin?.webContents.send("job-assigned", msg.payload);
+        case "JOB_ASSIGNED": {
+          const jobPayload = msg.payload as JobPayload;
+          store.set("currentJobId", jobPayload.jobId);
+          mainWin?.webContents.send("job-assigned", jobPayload);
+
+          // Run job in background — never blocks the WebSocket
+          runJob(jobPayload, (progress) => {
+            mainWin?.webContents.send("job-progress", {
+              jobId: jobPayload.jobId,
+              message: progress,
+            });
+          }).catch((err) => {
+            console.error("[WS] Job runner crashed:", err.message);
+            store.set("currentJobId", null);
+            mainWin?.webContents.send("job-error", {
+              jobId: jobPayload.jobId,
+              error: err.message,
+            });
+          });
           break;
+        }
+
         case "JOB_CANCELLED":
           store.set("currentJobId", null);
           mainWin?.webContents.send("job-cancelled", msg.payload);
           break;
+
         case "PING":
           ws?.send(JSON.stringify({ type: "PONG" }));
           break;
+
+        default:
+          console.warn("[WS] Unknown message type:", msg.type);
       }
     } catch {
-      // ignore malformed messages
+      // Ignore malformed messages
     }
   });
 

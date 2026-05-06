@@ -18,6 +18,9 @@ async function processJob(bullJob: BullJob<JobMatchPayload>): Promise<void> {
       budget: true,
       requiredVramGB: true,
       requiredGpuTier: true,
+      dockerImage: true,
+      jobParams: true,
+      timeLimitSecs: true,
     },
   });
 
@@ -35,6 +38,7 @@ async function processJob(bullJob: BullJob<JobMatchPayload>): Promise<void> {
   const provider = await prisma.provider.findFirst({
     where: {
       status: "ACTIVE",
+      lastHeartbeat: { gte: new Date(Date.now() - 60_000) },
       ...(job.requiredVramGB ? { vramGB: { gte: job.requiredVramGB } } : {}),
       ...(job.requiredGpuTier ? { tier: { gte: job.requiredGpuTier } } : {}),
     },
@@ -70,6 +74,9 @@ async function processJob(bullJob: BullJob<JobMatchPayload>): Promise<void> {
     type: job.type,
     inputUri: job.inputUri,
     budget: Number(job.budget),
+    dockerImage: job.dockerImage,
+    jobParams: job.jobParams,
+    timeLimitSecs: job.timeLimitSecs,
   });
 
   if (!delivered) {

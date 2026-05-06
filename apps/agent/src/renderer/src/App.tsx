@@ -69,7 +69,6 @@ export default function App() {
         setProvider(null);
         setPage("auth");
       }}
-      onUserUpdate={setUser}
     />
   );
 }

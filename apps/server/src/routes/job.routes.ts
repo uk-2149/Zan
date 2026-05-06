@@ -1,21 +1,28 @@
 import { Router } from "express";
 import {
   submitJob,
-  listClientJobs,
-  getJob,
+  getMyJobs,
+  getJobById,
+  jobComplete,
+  updateJobStatus,
   cancelJob,
-  getJobEvents,
 } from "../controllers/job.controller.js";
 import { verifyJWT } from "../middlewares/verifyJWT.js";
+import { verifyAgent } from "../middlewares/verifyAgent.js";
+import { verifyInternal } from "../middlewares/verifyInternal.js";
 
 const jobRouter: Router = Router();
 
-jobRouter.use(verifyJWT);
+// Client routes (JWT)
+jobRouter.post("/submit", verifyJWT, submitJob);
+jobRouter.get("/my-jobs", verifyJWT, getMyJobs);
+jobRouter.get("/:id", verifyJWT, getJobById);
+jobRouter.patch("/:id/cancel", verifyJWT, cancelJob);
 
-jobRouter.post("/", submitJob);
-jobRouter.get("/", listClientJobs);
-jobRouter.get("/:id", getJob);
-jobRouter.patch("/:id/cancel", cancelJob);
-jobRouter.get("/:id/events", getJobEvents);
+// Provider agent routes (Signature)
+jobRouter.post("/:id/complete", verifyAgent, jobComplete);
+
+// Internal routes (Matchmaker)
+jobRouter.patch("/:id/status", verifyInternal, updateJobStatus);
 
 export { jobRouter };

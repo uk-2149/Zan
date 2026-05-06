@@ -57,4 +57,7 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.on("ws-status", handler);
     return () => ipcRenderer.removeListener("ws-status", handler);
   },
+
+  openExternal: (url: string) => ipcRenderer.invoke("app:open-external", url),
+  getVerifyUrl: () => ipcRenderer.invoke("app:get-verify-url"),
 });

@@ -15,7 +15,7 @@
   },
   "scripts": {
     "build": "rm -rf dist dist-cjs && tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && mv dist-cjs/index.js dist-cjs/index.cjs",
-    "dev": "tsc --watch",
+    "dev": "rm -rf dist && tsc --watch",
     "lint": "eslint src/"
   },
   "devDependencies": {

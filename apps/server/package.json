@@ -27,7 +27,9 @@
     "@repo/crypto": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/types": "workspace:*",
+    "@solana/web3.js": "^1.98.4",
     "bcryptjs": "^3.0.3",
+    "bs58": "^6.0.0",
     "bullmq": "^5.76.4",
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
@@ -35,6 +37,7 @@
     "helmet": "^8.1.0",
     "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.3",
+    "tweetnacl": "^1.0.3",
     "ws": "^8.20.0"
   }
 }

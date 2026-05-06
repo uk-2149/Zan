@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Power,
@@ -9,10 +11,97 @@ import {
   Thermometer,
   Zap,
   Layers,
+  Loader2,
+  Server,
+  Download,
 } from "lucide-react";
+import { api } from "@/lib/api";
 
 export default function ProviderDashboard(): React.JSX.Element {
-  const [isOnline, setIsOnline] = useState(true);
+  const { data: session } = useSession({ required: true });
+  const router = useRouter();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasProvider, setHasProvider] = useState(false);
+  const [providerData, setProviderData] = useState<any>(null);
+  const [isOnline, setIsOnline] = useState(false);
+
+  useEffect(() => {
+    if (session?.user && (session.user as any).role === "CLIENT") {
+      router.push("/client");
+    }
+  }, [session, router]);
+
+  useEffect(() => {
+    if (!session?.user) return;
+
+    api.get("/api/providers/me")
+      .then((data: any) => {
+        if (data.hasProvider) {
+          setHasProvider(true);
+          setProviderData(data);
+          setIsOnline(data.provider.status === "ACTIVE" || data.provider.status === "BUSY");
+        } else {
+          setHasProvider(false);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch provider data:", err);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [session]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-brand-dark flex flex-col items-center justify-center relative overflow-hidden">
+        <Loader2 className="w-8 h-8 text-brand-cyan animate-spin mb-4" />
+        <p className="text-white/50 font-mono text-sm">Loading Node Telemetry...</p>
+      </div>
+    );
+  }
+
+  if (!hasProvider) {
+    return (
+      <div className="min-h-screen bg-brand-dark pt-20 pb-24 relative overflow-hidden flex flex-col items-center justify-center">
+        <div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-cyan/5 blur-[150px] rounded-full pointer-events-none" />
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="relative z-10 max-w-lg w-full p-10 rounded-3xl border border-white/10 bg-brand-gray/50 backdrop-blur-xl shadow-2xl text-center"
+        >
+          <div className="w-24 h-24 rounded-full bg-brand-cyan/10 border border-brand-cyan/20 flex items-center justify-center mx-auto mb-8 shadow-[0_0_30px_rgba(0,255,209,0.15)]">
+            <Server className="w-10 h-10 text-brand-cyan" />
+          </div>
+          <h2 className="text-3xl font-bold text-white mb-4">No Node Connected</h2>
+          <p className="text-white/50 font-light mb-10 leading-relaxed">
+            Your account is ready, but we haven't detected any attached GPU hardware. To start accepting workloads and earning SOL, you need to launch the GNet Desktop Agent.
+          </p>
+
+          <a
+            href="https://github.com"
+            target="_blank"
+            rel="noreferrer"
+            className="group relative flex items-center justify-center gap-3 w-full py-4 rounded-xl bg-brand-cyan text-brand-dark font-bold hover:bg-white transition-all shadow-[0_0_20px_rgba(0,255,209,0.3)]"
+          >
+            <Download className="w-5 h-5" />
+            Download Desktop Agent
+            <div className="absolute inset-0 rounded-xl ring-2 ring-white/20 scale-105 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all" />
+          </a>
+          
+          <p className="mt-6 text-xs text-white/30 font-mono">
+            Already have the agent? Just launch it and sign in.
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  const { provider, metrics } = providerData;
 
   return (
     <div className="min-h-screen bg-brand-dark pt-10 pb-24 relative overflow-hidden">
@@ -37,7 +126,7 @@ export default function ProviderDashboard(): React.JSX.Element {
                 Node Control Panel
               </h1>
               <span className="font-mono text-xs px-2 py-1 rounded bg-white/5 border border-white/10 text-white/50">
-                ID: ZAN-IN-004
+                ID: {provider.id.slice(0, 10).toUpperCase()}
               </span>
             </div>
             <p className="text-white/50 font-light">
@@ -45,7 +134,7 @@ export default function ProviderDashboard(): React.JSX.Element {
             </p>
           </motion.div>
 
-          {/*  Toggle Switch */}
+          {/* Toggle Switch */}
           <motion.button
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -75,26 +164,26 @@ export default function ProviderDashboard(): React.JSX.Element {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
           {[
             {
-              label: "24h Yield",
-              value: "+ 12.4 USDC",
+              label: "Tier Level",
+              value: `Tier ${provider.tier}`,
               icon: Zap,
               border: "border-brand-cyan/20",
             },
             {
               label: "Total Earned",
-              value: "3.2 SOL",
+              value: `${Number(metrics?.totalEarnedSol || 0).toFixed(2)} SOL`,
               icon: Layers,
               border: "border-white/5",
             },
             {
               label: "Uptime",
-              value: "99.8%",
+              value: `${Number(metrics?.uptimePercent || 0).toFixed(1)}%`,
               icon: Activity,
               border: "border-white/5",
             },
             {
               label: "Tasks Completed",
-              value: "1,204",
+              value: (metrics?.successfulJobs || 0).toLocaleString(),
               icon: HardDrive,
               border: "border-white/5",
             },
@@ -139,7 +228,7 @@ export default function ProviderDashboard(): React.JSX.Element {
               {isOnline && (
                 <span className="w-1.5 h-1.5 rounded-full bg-brand-cyan animate-pulse" />
               )}
-              RTX 4090 (24GB)
+              {provider.gpuModel || "Unknown GPU"} ({provider.vramGB || 0}GB)
             </div>
           </div>
 
@@ -148,9 +237,9 @@ export default function ProviderDashboard(): React.JSX.Element {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-white/50 text-sm flex items-center gap-2">
-                  <HardDrive className="w-4 h-4" /> VRAM Allocation
+                  <HardDrive className="w-4 h-4" /> VRAM Capacity
                 </span>
-                <span className="font-mono text-brand-cyan">18.5 / 24 GB</span>
+                <span className="font-mono text-brand-cyan">{provider.vramGB || 0} GB</span>
               </div>
               <div className="w-full h-4 bg-white/5 rounded-full overflow-hidden relative border border-white/10">
                 <motion.div
