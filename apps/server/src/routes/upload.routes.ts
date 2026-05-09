@@ -5,7 +5,7 @@ import { uploadToMinio, getPresignedUrl, BUCKETS } from "../lib/minio.js";
 import * as path from "path";
 import * as crypto from "crypto";
 
-const router = Router();
+const router: Router = Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
