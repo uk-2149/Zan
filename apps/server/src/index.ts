@@ -6,6 +6,7 @@ import { createServer } from "http";
 import { authRouter } from "./routes/auth.routes.js";
 import { providerRouter } from "./routes/provider.routes.js";
 import { jobRouter } from "./routes/job.routes.js";
+import { uploadRouter } from "./routes/upload.routes.js";
 import { setupWebSocketServer } from "./ws/server.js";
 import { startHeartbeatMonitor } from "./jobs/heartbeatMonitor.js";
 import { startMatchmakerWorker } from "./workers/matchmaker.worker.js";
@@ -27,6 +28,7 @@ app.use(express.json());
 app.use("/api/auth", authRouter);
 app.use("/api/providers", providerRouter);
 app.use("/api/jobs", jobRouter);
+app.use("/api/upload", uploadRouter);
 
 // Health check
 app.get("/health", (_, res) =>

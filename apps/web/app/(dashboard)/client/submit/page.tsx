@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSession } from "next-auth/react";
+import { getSession, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -11,6 +11,10 @@ import {
   Database, Film, Activity, Image as ImageIcon, Clock, Sparkles,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useWalletConnection } from "@/hooks/use-wallet-connection";
+import { useEscrow } from "@/hooks/use-escrow";
+import { SystemProgram } from "@solana/web3.js";
+import { WalletConnectButton } from "@/components/shared/wallet-connect-button";
 
 //Job type definitions
 const JOB_TYPE_DEFS = [
@@ -102,6 +106,28 @@ const JOB_TYPE_DEFS = [
     inputHint:   "s3://bucket/raw-data.parquet",
     category:    "Scientific & Data",
   },
+  {
+    value:       "python_script",
+    label:       "Python Script",
+    icon:        FileText,
+    desc:        "Run any Python script. Upload your .py file and get logs + outputs back.",
+    vramDefault: 0,
+    ratePerHour: 0.001,
+    frameworks:  ["NumPy", "Pandas", "Scikit-learn", "OpenCV", "Custom"],
+    inputHint:   "Upload a .py file above",
+    category:    "Scientific & Data",
+  },
+  {
+    value:       "python_gpu",
+    label:       "Python (GPU)",
+    icon:        Zap,
+    desc:        "Python + PyTorch CUDA runtime for GPU workloads.",
+    vramDefault: 4,
+    ratePerHour: 0.006,
+    frameworks:  ["PyTorch", "CUDA", "Diffusers", "Custom"],
+    inputHint:   "Upload a .py file above",
+    category:    "Scientific & Data",
+  },
 ] as const;
 
 type JobTypeValue = (typeof JOB_TYPE_DEFS)[number]["value"];
@@ -145,11 +171,94 @@ function FieldLabel({
   );
 }
 
+function FileUploader({
+  onUploaded,
+}: {
+  onUploaded: (uri: string, filename: string) => void;
+}): React.ReactElement {
+  const [uploading, setUploading] = useState(false);
+  const [uploaded, setUploaded] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  const handleFile = async (file: File) => {
+    setUploading(true);
+    setError("");
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const session = await getSession();
+    const token = (session as any)?.accessToken;
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/upload`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        },
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).error ?? "Upload failed");
+      }
+
+      const data = await res.json();
+      setUploaded(data.filename);
+      onUploaded(data.downloadUrl ?? data.uri, data.filename);
+    } catch (err: any) {
+      setError(err.message ?? "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="mt-3">
+      <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-white/20 p-6 transition-colors hover:border-brand-cyan/40">
+        <Upload className="h-6 w-6 text-white/30" />
+        <span className="text-sm text-white/40">
+          {uploading ? "Uploading..." : "Drop file here or click to upload"}
+        </span>
+        <span className="text-xs text-white/25">
+          .py · .zip · .json · .csv · .txt · .blend · 100MB max
+        </span>
+        <input
+          type="file"
+          className="hidden"
+          accept=".py,.zip,.tar.gz,.json,.jsonl,.csv,.txt,.blend"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+          }}
+        />
+      </label>
+      {uploading && (
+        <div className="mt-2 flex items-center gap-2 text-sm text-white/40">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Uploading to MinIO...
+        </div>
+      )}
+      {uploaded && !uploading && (
+        <div className="mt-2 flex items-center gap-2 text-sm text-green-400">
+          <CheckCircle2 className="h-4 w-4" />
+          {uploaded} uploaded successfully
+        </div>
+      )}
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+    </div>
+  );
+}
+
 // Page
 export default function SubmitJobPage(): React.ReactElement {
   useSession({ required: true });
   const router = useRouter();
+  const { connected, balance, address } = useWalletConnection();
 
+  const { createJobEscrow } = useEscrow();
   const [jobType,         setJobType]         = useState<JobTypeValue>("inference");
   const [framework,       setFramework]       = useState("");
   const [customFramework, setCustomFramework] = useState("");
@@ -158,7 +267,7 @@ export default function SubmitJobPage(): React.ReactElement {
   const [budget,          setBudget]          = useState("");
   const [duration,        setDuration]        = useState<DurationValue>("medium");
   const [requiredVram,    setRequiredVram]     = useState("16");
-  const [gpuTier,         setGpuTier]         = useState<0 | 1 | 2>(1);
+  const [gpuTier,         setGpuTier]         = useState<0 | 1 | 2>(0);
   const [priority,        setPriority]        = useState<Priority>("standard");
   const [notes,           setNotes]           = useState("");
   const [submitting,      setSubmitting]      = useState(false);
@@ -172,6 +281,10 @@ export default function SubmitJobPage(): React.ReactElement {
     setCustomFramework("");
     const def = JOB_TYPE_DEFS.find((t) => t.value === v)!;
     setRequiredVram(String(def.vramDefault));
+    // Default Python jobs to "Any" trust tier so tier-0 providers can match.
+    if (v === "python_script" || v === "python_gpu") {
+      setGpuTier(0);
+    }
   };
 
   const handleFrameworkClick = (fw: string) => {
@@ -210,37 +323,66 @@ export default function SubmitJobPage(): React.ReactElement {
       setError("Budget must be a positive number.");
       return;
     }
+    if (!connected) {
+      setError("Connect your wallet before submitting.");
+      return;
+    }
+    if (balance !== null && budgetNum > balance) {
+      setError("Insufficient balance for this budget.");
+      return;
+    }
     setSubmitting(true);
-    const stakeSignature = `dev_${crypto.randomUUID()}`; // TODO: replace with real Anchor tx
-    
+
     // Resolve dockerImage and timeLimitSecs based on job type for the MVP
+    let mappedType: string = jobType;
     let dockerImage = "gnet/custom:latest";
     let timeLimitSecs = 3600;
     
     if (jobType === "render") {
-      dockerImage = "gnet/blender:4.1";
+      mappedType = "blender_render";
+      dockerImage = "blenderkit/headless-blender:blender-4.1";
       timeLimitSecs = 7200;
     } else if (jobType === "image-gen") {
-      dockerImage = "gnet/stable-diffusion:1.5";
+      mappedType = "stable_diffusion";
+      dockerImage = "universonic/stable-diffusion-webui:minimal";
       timeLimitSecs = 300;
     } else if (jobType === "video-gen") {
-      dockerImage = "gnet/ffmpeg:6.0";
+      mappedType = "ffmpeg_transcode";
+      dockerImage = "jrottenberg/ffmpeg:6.0-ubuntu1804";
       timeLimitSecs = 1800;
+    } else if (jobType === "python_script") {
+      dockerImage = "python:3.11-slim";
+      timeLimitSecs = 300;
+    } else if (jobType === "python_gpu") {
+      dockerImage = "pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime";
+      timeLimitSecs = 3600;
     }
 
     try {
-      const data = await api.post("/api/jobs/submit", {
+      const prepareResponse = await api.post("/api/jobs/submit/prepare", {
         title:           title.trim(),
-        type:            jobType,
+        type:            mappedType,
         dockerImage,
         inputUri:        inputUri.trim(),
         jobParams:       { framework: effectiveFw, notes, priority },
         budget:          budgetNum,
-        requiredVramGB:  requiredVram ? Number(requiredVram) : undefined,
+        requiredVramGB:  requiredVram === "" ? undefined : Math.max(0, Number(requiredVram)),
         requiredGpuTier: gpuTier,
-        stakeSignature,
+        clientWalletAddress: address,
         timeLimitSecs,
       });
+
+      const stakeSignature = await createJobEscrow(
+        String(prepareResponse.jobNumericId),
+        Math.round(budgetNum * 1_000_000_000),
+      );
+
+      const data = await api.post("/api/jobs/submit", {
+        jobId:           prepareResponse.jobId,
+        clientWalletAddress: address,
+        stakeSignature,
+      });
+
       router.push(`/client/jobs/${data.jobId}`);
     } catch (err: any) {
       let msg = "Network error. Please check your connection and try again.";
@@ -399,6 +541,15 @@ export default function SubmitJobPage(): React.ReactElement {
                   {/* Input URI */}
                   <div>
                     <FieldLabel required hint="S3 · IPFS · HTTPS">Input URI</FieldLabel>
+                    <FileUploader onUploaded={(uri, filename) => {
+                      setInputUri(uri);
+                      if (!title.trim()) setTitle(filename.replace(/\.[^.]+$/, "") + " job");
+                    }} />
+                    <div className="my-3 flex items-center gap-3">
+                      <div className="h-px flex-1 bg-white/10" />
+                      <span className="text-xs text-white/30">or paste URI manually</span>
+                      <div className="h-px flex-1 bg-white/10" />
+                    </div>
                     <div className="relative">
                       <Upload className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-white/30" />
                       <input
@@ -500,7 +651,7 @@ export default function SubmitJobPage(): React.ReactElement {
                         type="number"
                         value={requiredVram}
                         onChange={(e) => setRequiredVram(e.target.value)}
-                        min="1"
+                        min="0"
                         max="160"
                         className="h-14 w-full rounded-2xl border border-white/10 bg-black/45 pl-14 pr-5 text-base text-white outline-none transition-all placeholder:text-white/25 focus:border-brand-cyan focus:ring-2 focus:ring-brand-cyan/20"
                       />
@@ -587,14 +738,14 @@ export default function SubmitJobPage(): React.ReactElement {
                   ))}
                 </div>
 
-                <div className="mt-5 rounded-2xl border border-amber-500/15 bg-amber-500/5 p-4">
+                <div className="mt-5 rounded-2xl border border-brand-cyan/20 bg-brand-cyan/5 p-4">
                   <div className="mb-2 flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-amber-300" />
-                    <p className="text-sm font-bold text-amber-300">Dev Escrow</p>
+                    <ShieldCheck className="h-4 w-4 text-brand-cyan" />
+                    <p className="text-sm font-bold text-brand-cyan">On-Chain Escrow</p>
                   </div>
-                  <p className="text-sm leading-relaxed text-amber-100/55">
-                    Funds are simulated in dev mode. The job is created with an
-                    escrow reference for later Solana settlement.
+                  <p className="text-sm leading-relaxed text-brand-cyan/70">
+                    Funds will be locked in a Solana smart contract. 
+                    The provider is only paid after verifiable completion.
                   </p>
                 </div>
 
@@ -616,9 +767,31 @@ export default function SubmitJobPage(): React.ReactElement {
                   </div>
                 )}
 
+                {!connected && (
+                  <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+                    <div className="flex items-center gap-3">
+                      <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
+                      <div>
+                        <p className="text-sm font-bold text-amber-300">Wallet required</p>
+                        <p className="text-xs text-amber-100/60 mt-0.5">
+                          Connect your Solana wallet to lock funds and deploy
+                        </p>
+                      </div>
+                    </div>
+                    <WalletConnectButton className="mt-3 w-full justify-center" showBalance={false} />
+                  </div>
+                )}
+
+                {connected && balance !== null && balance < budgetNum && budgetNum > 0 && (
+                  <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300">
+                    ✗ Insufficient balance. You have {balance.toFixed(3)} SOL, but this job requires{" "}
+                    {budgetNum.toFixed(3)} SOL.
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || !connected || (balance !== null && balance < budgetNum)}
                   className="mt-6 flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-brand-cyan text-base font-bold text-brand-dark shadow-[0_0_35px_rgba(0,255,209,0.18)] transition-all hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? (

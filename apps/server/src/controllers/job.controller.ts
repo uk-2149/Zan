@@ -1,27 +1,55 @@
 import type { Request, Response } from "express";
 import { prisma } from "@repo/db";
+import * as solanaService from "../services/solana.service.js";
 import { enqueueJob } from "../queues/jobQueue.js";
 import { JOB_TYPES } from "../config/jobTypes.js";
 import type { JobTypeKey } from "../config/jobTypes.js";
+import { BUCKETS, getPresignedUrl } from "../lib/minio.js";
+import { sendCancelToProvider } from "../ws/server.js";
 
-// submitJob
-export const submitJob = async (req: Request, res: Response) => {
+const LAMPORTS_PER_SOL = 1_000_000_000;
+
+function extractMinioKey(uri: string, bucket: string): string | null {
+  try {
+    const parsed = new URL(uri);
+    const prefix = `/${bucket}/`;
+    if (!parsed.pathname.startsWith(prefix)) return null;
+    return parsed.pathname.slice(prefix.length);
+  } catch {
+    return null;
+  }
+}
+
+async function maybePresignMinioUri(uri: string | null, bucket: string): Promise<string | null> {
+  if (!uri) return null;
+  const key = extractMinioKey(uri, bucket);
+  if (!key) return uri;
+  try {
+    return await getPresignedUrl(bucket, key);
+  } catch {
+    return uri;
+  }
+}
+
+// prepareJobSubmit
+export const prepareJobSubmit = async (req: Request, res: Response) => {
   const clientId = (req as any).user.id;
   const {
     title,
     type,
     dockerImage,
     inputUri,
+    clientWalletAddress,
     jobParams,
     requiredVramGB,
+    requiredGpuTier,
     budget,
-    stakeSignature,
     timeLimitSecs,
   } = req.body;
 
-  if (!title?.trim() || !type || !dockerImage?.trim() || !inputUri?.trim() || !jobParams || !budget || !stakeSignature?.trim()) {
+  if (!title?.trim() || !type || !dockerImage?.trim() || !inputUri?.trim() || !jobParams || !budget || !clientWalletAddress?.trim()) {
     return res.status(400).json({
-      error: "title, type, dockerImage, inputUri, jobParams, budget, and stakeSignature are required",
+      error: "title, type, dockerImage, inputUri, jobParams, budget, and clientWalletAddress are required",
     });
   }
 
@@ -30,27 +58,106 @@ export const submitJob = async (req: Request, res: Response) => {
     return res.status(400).json({ error: "budget must be a positive number" });
   }
 
+  const typeConfig = JOB_TYPES[type as JobTypeKey];
+  if (!typeConfig) {
+    return res.status(400).json({ error: "Unsupported job type" });
+  }
+
+  const requestedRequiredVramGB =
+    requiredVramGB === undefined || requiredVramGB === null || requiredVramGB === ""
+      ? typeConfig.minVramGB
+      : Number(requiredVramGB);
+
+  if (Number.isNaN(requestedRequiredVramGB) || requestedRequiredVramGB < 0) {
+    return res.status(400).json({ error: "requiredVramGB must be >= 0" });
+  }
+  const parsedRequiredVramGB = Math.max(typeConfig.minVramGB, requestedRequiredVramGB);
+
+  const parsedRequiredGpuTier =
+    requiredGpuTier === undefined || requiredGpuTier === null || requiredGpuTier === ""
+      ? 0
+      : Number(requiredGpuTier);
+
+  if (!Number.isInteger(parsedRequiredGpuTier) || parsedRequiredGpuTier < 0 || parsedRequiredGpuTier > 2) {
+    return res.status(400).json({ error: "requiredGpuTier must be 0, 1, or 2" });
+  }
+
   try {
-    const job = await prisma.$transaction(async (tx) => {
-      const newJob = await tx.job.create({
-        data: {
-          clientId,
-          title: title.trim(),
-          type,
-          dockerImage: dockerImage.trim(),
-          inputUri: inputUri.trim(),
-          jobParams,
-          budget: budgetNum,
+    const job = await prisma.job.create({
+      data: {
+        clientId,
+        title: title.trim(),
+        type,
+        dockerImage: dockerImage.trim(),
+        inputUri: inputUri.trim(),
+        jobParams,
+        budget: budgetNum,
+        status: "CREATED",
+        requiredVramGB: parsedRequiredVramGB,
+        requiredGpuTier: parsedRequiredGpuTier,
+        timeLimitSecs: timeLimitSecs ? Number(timeLimitSecs) : 3600,
+      },
+    });
+
+    await prisma.jobEvent.create({
+      data: {
+        jobId: job.id,
+        type: "CREATED",
+        metadata: { clientId, clientWalletAddress, jobType: type, budget: budgetNum },
+      },
+    });
+
+    res.status(201).json({ success: true, jobId: job.id, jobNumericId: job.jobNumericId.toString() });
+  } catch (err) {
+    console.error("[prepareJobSubmit]", err);
+    res.status(500).json({ error: "Could not prepare job submission" });
+  }
+};
+
+// submitJob
+export const submitJob = async (req: Request, res: Response) => {
+  const clientId = (req as any).user.id;
+  const { jobId, stakeSignature, clientWalletAddress } = req.body;
+
+  if (!jobId?.trim() || !stakeSignature?.trim() || !clientWalletAddress?.trim()) {
+    return res.status(400).json({ error: "jobId, stakeSignature, and clientWalletAddress are required" });
+  }
+
+  try {
+    const job = await prisma.job.findUnique({ where: { id: String(jobId) } });
+    if (!job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+    if (job.clientId !== clientId) {
+      return res.status(403).json({ error: "Not your job" });
+    }
+    if (job.status !== "CREATED") {
+      return res.status(400).json({ error: "Job can only be funded from CREATED state" });
+    }
+
+    const escrowOk = await solanaService.verifyJobEscrow(
+      Number(job.jobNumericId),
+      clientWalletAddress,
+      Math.round(Number(job.budget) * LAMPORTS_PER_SOL),
+    );
+
+    if (!escrowOk) {
+      return res.status(400).json({ error: 'Invalid or missing escrow transaction on Solana' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.job.update({
+        where: { id: job.id },
+        data: { 
           status: "FUNDED",
-          requiredVramGB: requiredVramGB ? Number(requiredVramGB) : 4,
-          timeLimitSecs: timeLimitSecs ? Number(timeLimitSecs) : 3600,
+          clientWalletAddress: clientWalletAddress.trim(), // Save for refunds
         },
       });
 
       await tx.escrow.create({
         data: {
-          jobId: newJob.id,
-          amount: budgetNum,
+          jobId: job.id,
+          amount: Number(job.budget),
           token: "SOL",
           depositTxSig: stakeSignature.trim(),
           status: "LOCKED",
@@ -59,18 +166,16 @@ export const submitJob = async (req: Request, res: Response) => {
 
       await tx.jobEvent.create({
         data: {
-          jobId: newJob.id,
-          type: "CREATED",
-          metadata: { clientId, jobType: type, budget: budgetNum },
+          jobId: job.id,
+          type: "FUNDED",
+          metadata: { stakeSignature: stakeSignature.trim(), clientWalletAddress },
         },
       });
-
-      return newJob;
     });
 
     await enqueueJob(job.id);
 
-    res.status(201).json({ success: true, jobId: job.id });
+    res.json({ success: true, jobId: job.id });
   } catch (err) {
     console.error("[submitJob]", err);
     res.status(500).json({ error: "Submission failed" });
@@ -111,7 +216,28 @@ export const getJobById = async (req: Request, res: Response) => {
       return res.status(403).json({ error: "Not your job" });
     }
 
-    res.json({ job });
+    const responseJob: any = { 
+      ...job,
+      jobNumericId: job.jobNumericId?.toString()
+    };
+    responseJob.outputUri = await maybePresignMinioUri(job.outputUri, BUCKETS.outputs);
+
+    if (responseJob.executionMetadata && typeof responseJob.executionMetadata === "object") {
+      const meta: any = { ...responseJob.executionMetadata };
+      meta.logsUri = await maybePresignMinioUri(meta.logsUri ?? null, BUCKETS.outputs);
+
+      if (Array.isArray(meta.outputFiles)) {
+        meta.outputFiles = await Promise.all(
+          meta.outputFiles.map(async (file: any) => ({
+            ...file,
+            uri: await maybePresignMinioUri(file?.uri ?? null, BUCKETS.outputs),
+          })),
+        );
+      }
+      responseJob.executionMetadata = meta;
+    }
+
+    res.json({ job: responseJob });
   } catch (err) {
     console.error("[getJobById]", err);
     res.status(500).json({ error: "Failed to fetch job" });
@@ -154,6 +280,37 @@ export const getMyJobs = async (req: Request, res: Response) => {
   }
 };
 
+export const getMyStats = async (req: Request, res: Response) => {
+  const clientId = (req as any).user.id;
+
+  try {
+    const [totalJobs, activeJobs, spentResult, lockedResult] = await Promise.all([
+      prisma.job.count({ where: { clientId } }),
+      prisma.job.count({
+        where: { clientId, status: { in: ["FUNDED", "ASSIGNED", "RUNNING"] } },
+      }),
+      prisma.job.aggregate({
+        where: { clientId, status: "COMPLETED" },
+        _sum: { finalCost: true },
+      }),
+      prisma.escrow.aggregate({
+        where: { job: { clientId }, status: "LOCKED" },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    res.json({
+      totalJobs,
+      activeJobs,
+      totalSpent: Number(spentResult._sum.finalCost ?? 0),
+      escrowLocked: Number(lockedResult._sum.amount ?? 0),
+    });
+  } catch (err) {
+    console.error("[getMyStats]", err);
+    res.status(500).json({ error: "Failed to fetch dashboard stats" });
+  }
+};
+
 // jobComplete
 export const jobComplete = async (req: Request, res: Response) => {
   const providerId = (req as any).provider.id;
@@ -163,7 +320,7 @@ export const jobComplete = async (req: Request, res: Response) => {
   try {
     const job = await prisma.job.findUnique({
       where: { id: jobId },
-      select: { providerId: true, retryCount: true, maxRetries: true, status: true },
+      select: { providerId: true, retryCount: true, maxRetries: true, status: true, budget: true },
     });
 
     if (!job) return res.status(404).json({ error: "Job not found" });
@@ -175,32 +332,63 @@ export const jobComplete = async (req: Request, res: Response) => {
     }
 
     if (success) {
-      // TODO: trigger verification system here
-      // For now just mark completed and release payment
-      await prisma.job.update({
+      const jobDetails = await prisma.job.findUnique({
         where: { id: jobId },
-        data: { 
-          status: 'COMPLETED',
-          outputUri,
-          executionMetadata,
-          completedAt: new Date()
-        }
-      });
-
-      // TODO: call Anchor escrow release instruction here
-      // For now just update escrow status in DB
-      await prisma.escrow.update({
-        where: { jobId },
-        data: { status: 'RELEASED', releasedAt: new Date() }
-      });
-
-      await prisma.jobEvent.create({
-        data: {
-          jobId,
-          type: "COMPLETED",
-          metadata: { providerId, outputUri },
+        select: {
+          clientWalletAddress: true,
+          provider: { select: { user: { select: { walletAddress: true } } } },
+          jobNumericId: true,
         },
       });
+
+      if (!jobDetails?.clientWalletAddress || !jobDetails?.provider?.user?.walletAddress) {
+        throw new Error('Missing on-chain wallet addresses for settle (clientWalletAddress or provider wallet)');
+      }
+
+      const settleTxSig = await solanaService.settleJob(
+        Number(jobDetails.jobNumericId),
+        Math.round(Number(job.budget) * LAMPORTS_PER_SOL),
+        jobDetails.provider.user.walletAddress,
+        jobDetails.clientWalletAddress,
+      );
+
+      const providerEarnings = Number(job.budget) * 0.95;
+
+      await prisma.$transaction([
+        prisma.job.update({
+          where: { id: jobId },
+          data: {
+            status: "COMPLETED",
+            finalCost: providerEarnings,
+            outputUri,
+            executionMetadata,
+            completedAt: new Date(),
+          },
+        }),
+        prisma.escrow.update({
+          where: { jobId },
+          data: { status: "RELEASED", releasedAt: new Date(), releaseTxSig: settleTxSig },
+        }),
+        prisma.providerMetric.update({
+          where: { providerId },
+          data: {
+            totalJobs: { increment: 1 },
+            successfulJobs: { increment: 1 },
+            totalEarnedSol: { increment: providerEarnings },
+          },
+        }),
+        prisma.provider.update({
+          where: { id: providerId },
+          data: { status: "ACTIVE", jobsCompleted: { increment: 1 } },
+        }),
+        prisma.jobEvent.create({
+          data: {
+            jobId,
+            type: "COMPLETED",
+            metadata: { providerId, outputUri, earnings: providerEarnings, settleTxSig },
+          },
+        }),
+      ]);
 
     } else {
       const newRetryCount = job.retryCount + 1;
@@ -220,6 +408,19 @@ export const jobComplete = async (req: Request, res: Response) => {
       });
 
       if (isPermanentFail) {
+        const jobDetails = await prisma.job.findUnique({
+          where: { id: jobId },
+          select: { clientWalletAddress: true, jobNumericId: true },
+        });
+
+        if (jobDetails?.clientWalletAddress && jobDetails.jobNumericId) {
+          try {
+            await solanaService.refundJob(Number(jobDetails.jobNumericId), jobDetails.clientWalletAddress);
+          } catch (refundErr) {
+            console.error(`[reportJobFailed] On-chain refund failed for job ${jobId}`, refundErr);
+          }
+        }
+
         await prisma.escrow.update({
           where: { jobId },
           data: { status: 'REFUNDED', refundedAt: new Date() } // Refund client if fails permanently
@@ -235,6 +436,25 @@ export const jobComplete = async (req: Request, res: Response) => {
           metadata: { providerId, error: errorMessage, retryCount: newRetryCount },
         },
       });
+
+      // Provider should be available again after the attempt
+      await prisma.provider.update({
+        where: { id: providerId },
+        data: isPermanentFail
+          ? { status: "ACTIVE", jobsCompleted: { increment: 1 } }
+          : { status: "ACTIVE" },
+      }).catch(() => {});
+
+      if (isPermanentFail) {
+        await prisma.providerMetric.update({
+          where: { providerId },
+          data: {
+            totalJobs: { increment: 1 },
+            successfulJobs: { increment: 0 },
+            failedJobs: { increment: 1 },
+          },
+        }).catch(() => {});
+      }
     }
 
     res.json({ ok: true });
@@ -282,29 +502,82 @@ export const cancelJob = async (req: Request, res: Response) => {
   try {
     const job = await prisma.job.findUnique({
       where: { id: jobId },
-      select: { clientId: true, status: true },
+      select: {
+        clientId: true,
+        status: true,
+        providerId: true,
+        clientWalletAddress: true,
+        jobNumericId: true,
+      },
     });
 
     if (!job) return res.status(404).json({ error: "Job not found" });
     if (job.clientId !== clientId)
       return res.status(403).json({ error: "Not your job" });
 
-    if (job.status !== "CREATED" && job.status !== "FUNDED") {
+    const cancellableStatuses = ["CREATED", "FUNDED", "QUEUED", "ASSIGNED", "RUNNING"];
+    if (!cancellableStatuses.includes(job.status)) {
       return res
         .status(409)
         .json({ error: `Cannot cancel a job in ${job.status} state` });
     }
 
-    await prisma.$transaction([
-      prisma.job.update({ where: { id: jobId }, data: { status: "FAILED" } }),
-      prisma.escrow.update({
-        where: { jobId },
-        data: { status: "RELEASED" },
+    if (job.status !== "CREATED") {
+      if (job.clientWalletAddress && job.jobNumericId) {
+        try {
+          const refundTxSig = await solanaService.refundJob(
+            Number(job.jobNumericId),
+            job.clientWalletAddress
+          );
+          await prisma.escrow.update({
+            where: { jobId },
+            data: { refundTxSig, refundedAt: new Date() }
+          }).catch(() => {});
+          console.log(`[cancelJob] On-chain refund successful: ${refundTxSig}`);
+        } catch (refundErr) {
+          console.error(`[cancelJob] On-chain refund failed for job ${jobId}:`, refundErr);
+          return res.status(502).json({
+            error: "Cancel failed because the on-chain refund could not be confirmed",
+          });
+        }
+      } else {
+        console.warn(`[cancelJob] Missing clientWalletAddress or jobNumericId for job ${jobId}, skipping on-chain refund`);
+      }
+    }
+
+    const writes: any[] = [
+      prisma.job.update({
+        where: { id: jobId },
+        data: { status: "REFUNDED", completedAt: new Date() },
       }),
       prisma.jobEvent.create({
         data: { jobId, type: "CANCELLED", metadata: { cancelledBy: clientId } },
       }),
-    ]);
+    ];
+
+    if (job.status !== "CREATED") {
+      writes.push(
+        prisma.escrow.update({
+          where: { jobId },
+          data: { status: "REFUNDED", refundedAt: new Date() },
+        }),
+      );
+    }
+
+    if (job.providerId) {
+      writes.push(
+        prisma.provider.update({
+          where: { id: job.providerId },
+          data: { status: "ACTIVE" },
+        }),
+      );
+    }
+
+    await prisma.$transaction(writes);
+
+    if (job.providerId) {
+      sendCancelToProvider(job.providerId, { jobId, cancelledBy: clientId });
+    }
 
     res.json({ success: true });
   } catch (err) {

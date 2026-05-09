@@ -17,17 +17,33 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 
-// QUEUED and REFUNDED don't exist in the current generated Prisma client.
-// Cancelled jobs become FAILED with escrow.status = 'RELEASED'.
 type JobStatus =
   | "CREATED"
   | "FUNDED"
+  | "QUEUED"
   | "ASSIGNED"
   | "RUNNING"
   | "COMPLETED"
   | "FAILED"
   | "DISPUTED"
-  | "PAID";
+  | "PAID"
+  | "REFUNDED";
+
+interface ExecutionMetadata {
+  executionTimeMs: number;
+  vramUsedMb: number;
+  avgUtilization: number;
+  peakUtilization: number;
+  tempDeltaC: number;
+  powerDrawW: number;
+  exitCode: number;
+  logsUri: string;
+  outputFiles: {
+    filename: string;
+    uri: string;
+    size: number;
+  }[];
+}
 
 interface JobEvent {
   id: string;
@@ -43,7 +59,9 @@ interface Job {
   status: JobStatus;
   inputUri: string;
   outputUri: string | null;
+  executionMetadata?: ExecutionMetadata | null;
   budget: number;
+  finalCost: number | null;
   createdAt: string;
   provider: {
     gpuModel: string;
@@ -70,6 +88,12 @@ const STATUS_CONFIG: Record<
   },
   FUNDED: {
     label: "In Queue",
+    color: "text-blue-400",
+    bg: "bg-blue-500/10",
+    border: "border-blue-500/20",
+  },
+  QUEUED: {
+    label: "Queued",
     color: "text-blue-400",
     bg: "bg-blue-500/10",
     border: "border-blue-500/20",
@@ -110,10 +134,16 @@ const STATUS_CONFIG: Record<
     bg: "bg-green-500/10",
     border: "border-green-500/20",
   },
+  REFUNDED: {
+    label: "Refunded",
+    color: "text-orange-400",
+    bg: "bg-orange-500/10",
+    border: "border-orange-500/20",
+  },
 };
 
-const TERMINAL = new Set<JobStatus>(["COMPLETED", "FAILED", "PAID"]);
-const CANCELLABLE = new Set<JobStatus>(["CREATED", "FUNDED"]);
+const TERMINAL = new Set<JobStatus>(["COMPLETED", "FAILED", "PAID", "REFUNDED"]);
+const CANCELLABLE = new Set<JobStatus>(["CREATED", "FUNDED", "QUEUED", "ASSIGNED", "RUNNING"]);
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
@@ -125,10 +155,59 @@ function fmtDate(iso: string): string {
 }
 
 function StatusIcon({ status }: { status: JobStatus }): React.ReactElement {
-  if (status === "COMPLETED" || status === "PAID")
+  if (status === "COMPLETED" || status === "PAID" || status === "REFUNDED")
     return <CheckCircle2 className="w-4 h-4 text-green-400" />;
   if (status === "FAILED") return <XCircle className="w-4 h-4 text-red-400" />;
   return <Loader2 className="w-4 h-4 animate-spin" />;
+}
+
+function StatCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}): React.ReactElement {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <p className="text-xs text-white/30 mb-1">{label}</p>
+      <p className="text-white font-semibold text-sm truncate">{value}</p>
+    </div>
+  );
+}
+
+function LogViewer({ logsUri }: { logsUri: string }): React.ReactElement {
+  const [logs, setLogs] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(logsUri)
+      .then((r) => r.text())
+      .then((text) => {
+        if (cancelled) return;
+        setLogs(text);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLogs("Failed to load logs");
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [logsUri]);
+
+  if (loading) return <div className="text-sm text-white/40">Loading logs...</div>;
+
+  return (
+    <pre className="max-h-96 overflow-auto rounded-xl bg-black/50 p-4 text-xs text-green-400 font-mono whitespace-pre-wrap">
+      {logs || "No logs captured"}
+    </pre>
+  );
 }
 
 export default function JobDetailPage(): React.ReactElement {
@@ -316,7 +395,110 @@ export default function JobDetailPage(): React.ReactElement {
             )}
           </div>
 
+          {/* Execution Logs */}
+          {job.executionMetadata?.logsUri && (job.status === "COMPLETED" || job.status === "FAILED" || job.status === "PAID" || job.status === "REFUNDED") && (
+            <div className="rounded-3xl border border-white/10 bg-brand-gray/20 backdrop-blur-xl p-6 mb-6">
+              <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">
+                Execution Logs
+              </h2>
+              <LogViewer logsUri={job.executionMetadata.logsUri} />
+            </div>
+          )}
+
+          {/* Output Files */}
+          {job.executionMetadata?.outputFiles?.length ? (
+            <div className="rounded-3xl border border-white/10 bg-brand-gray/20 backdrop-blur-xl p-6 mb-6">
+              <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">
+                Output Files
+              </h2>
+              <div className="space-y-3">
+                {job.executionMetadata.outputFiles.map((file) => (
+                  <div
+                    key={file.filename}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 p-4"
+                  >
+                    <span className="text-sm text-white/70 truncate">
+                      {file.filename} ({(file.size / 1024).toFixed(1)} KB)
+                    </span>
+                    <a
+                      href={file.uri}
+                      download={file.filename}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 text-white/70 hover:text-white hover:border-white/20 transition-all text-sm"
+                    >
+                      Download
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Execution Stats */}
+          {job.executionMetadata && (
+            <div className="rounded-3xl border border-white/10 bg-brand-gray/20 backdrop-blur-xl p-6 mb-6">
+              <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">
+                Execution Stats
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <StatCard
+                  label="Duration"
+                  value={`${(job.executionMetadata.executionTimeMs / 1000).toFixed(1)}s`}
+                />
+                <StatCard
+                  label="Avg GPU Util"
+                  value={`${job.executionMetadata.avgUtilization}%`}
+                />
+                <StatCard
+                  label="Peak VRAM"
+                  value={`${job.executionMetadata.vramUsedMb} MB`}
+                />
+                <StatCard
+                  label="Exit Code"
+                  value={String(job.executionMetadata.exitCode)}
+                />
+                <StatCard
+                  label="Temp Delta"
+                  value={`+${job.executionMetadata.tempDeltaC}°C`}
+                />
+                <StatCard
+                  label="Power Draw"
+                  value={`${job.executionMetadata.powerDrawW}W`}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Event timeline */}
+          <div className="grid grid-cols-2 gap-4 rounded-2xl border border-white/10 bg-white/[0.025] p-5 mb-6">
+            <div>
+              <p className="text-xs text-white/30 mb-1">Budget (locked)</p>
+              <p className="text-xl font-bold text-white font-mono">
+                ◎ {Number(job.escrow?.amount ?? job.budget).toFixed(3)} SOL
+              </p>
+            </div>
+            {job.status === "COMPLETED" && job.finalCost && (
+              <div>
+                <p className="text-xs text-green-400/60 mb-1">Actual cost</p>
+                <p className="text-xl font-bold text-green-400 font-mono">
+                  ◎ {Number(job.finalCost).toFixed(3)} SOL
+                </p>
+                <p className="text-xs text-white/25 mt-1">
+                  ◎ {(Number(job.budget) - Number(job.finalCost)).toFixed(3)} SOL saved (5% platform fee)
+                </p>
+              </div>
+            )}
+            {job.status === "FAILED" && (
+              <div>
+                <p className="text-xs text-green-400/60 mb-1">Refunded</p>
+                <p className="text-xl font-bold text-green-400 font-mono">
+                  ◎ {Number(job.budget).toFixed(3)} SOL
+                </p>
+                <p className="text-xs text-white/25 mt-1">Full refund on failure</p>
+              </div>
+            )}
+          </div>
+
           <div className="rounded-3xl border border-white/10 bg-brand-gray/20 backdrop-blur-xl p-8 mb-6">
             <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-8">
               Timeline

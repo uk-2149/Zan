@@ -1,7 +1,9 @@
 import { Router } from "express";
 import {
+  prepareJobSubmit,
   submitJob,
   getMyJobs,
+  getMyStats,
   getJobById,
   jobComplete,
   updateJobStatus,
@@ -14,8 +16,10 @@ import { verifyInternal } from "../middlewares/verifyInternal.js";
 const jobRouter: Router = Router();
 
 // Client routes (JWT)
+jobRouter.post("/submit/prepare", verifyJWT, prepareJobSubmit);
 jobRouter.post("/submit", verifyJWT, submitJob);
 jobRouter.get("/my-jobs", verifyJWT, getMyJobs);
+jobRouter.get("/my-stats", verifyJWT, getMyStats);
 jobRouter.get("/:id", verifyJWT, getJobById);
 jobRouter.patch("/:id/cancel", verifyJWT, cancelJob);
 

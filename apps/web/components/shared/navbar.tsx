@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSession, signOut } from "next-auth/react";
 import { Logo } from "./logo";
 import { LogOut, User, LayoutDashboard, ChevronDown } from "lucide-react";
+import { WalletConnectButton } from "./wallet-connect-button";
 
 const NAV_LINKS = [
   { name: "Problem", href: "#problem" },
@@ -60,6 +61,7 @@ export function Navbar(): ReactElement {
           >
             Earn with GPU
           </Link>
+          {isLoggedIn && <WalletConnectButton showBalance />}
 
           {!isLoading && (
             <>

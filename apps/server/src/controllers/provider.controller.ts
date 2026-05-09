@@ -2,17 +2,19 @@
 import type { Request, Response } from 'express'
 import { prisma } from '@repo/db'
 import type { HardwareInfo, HeartbeatPayload } from '@repo/types'
+import * as solanaService from '../services/solana.service.js'
 
 // ── Register ──────────────────────────────────────────────────────
 export const registerProvider = async (req: Request, res: Response) => {
   const userId = (req as any).user.id  // from verifyJWT
   console.log("userid:", userId);
-  const { hardwareInfo, stakeSignature, stakedAmount, pricePerHour }:
+  const { hardwareInfo, stakeSignature, stakedAmount, pricePerHour, walletAddress }:
     {
       hardwareInfo: HardwareInfo
       stakeSignature: string
       stakedAmount: number
       pricePerHour: number
+      walletAddress?: string
     } = req.body
 
   if (!hardwareInfo || !stakeSignature || !stakedAmount || !pricePerHour) {
@@ -24,6 +26,34 @@ export const registerProvider = async (req: Request, res: Response) => {
     const existing = await prisma.provider.findFirst({ where: { userId } })
     if (existing) {
       return res.status(409).json({ error: 'Machine already registered for this account' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { walletAddress: true } })
+    const providerWallet = walletAddress?.trim() || user?.walletAddress
+
+    if (!providerWallet) {
+      return res.status(400).json({ error: 'Provider walletAddress required for staking verification' })
+    }
+
+    if (user?.walletAddress && walletAddress && walletAddress !== user.walletAddress) {
+      return res.status(400).json({ error: 'walletAddress does not match your linked account wallet' })
+    }
+
+    if (!user?.walletAddress && providerWallet) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { walletAddress: providerWallet },
+      })
+    }
+
+    const stakeOk = await solanaService.verifyStakeTransaction(
+      stakeSignature,
+      providerWallet,
+      Math.round(stakedAmount * 1_000_000_000),
+    )
+
+    if (!stakeOk) {
+      return res.status(400).json({ error: 'Stake transaction verification failed' })
     }
 
     const provider = await prisma.provider.create({
@@ -174,7 +204,8 @@ export const getProviderById = async (req: Request, res: Response) => {
       where: { id: String(req.params.id) },
       include: {
         metrics: true,
-        stakeTransactions: { orderBy: { createdAt: 'desc' }, take: 10 }
+        stakeTransactions: { orderBy: { createdAt: 'desc' }, take: 10 },
+        user: { select: { walletAddress: true } },
       }
     })
     if (!provider) return res.status(404).json({ error: 'Not found' })
@@ -189,26 +220,34 @@ export const getProviderStats = async (req: Request, res: Response) => {
   const provider = (req as any).provider  // from verifyAgent
 
   try {
-    const metrics = await prisma.providerMetric.findUnique({
-      where: { providerId: provider.id }
-    })
-
-    // Recent jobs
-    const recentJobs = await prisma.job.findMany({
-      where:   { providerId: provider.id },
-      orderBy: { createdAt: 'desc' },
-      take:    10,
-      select: {
-        id: true, type: true, status: true,
-        finalCost: true, completedAt: true, createdAt: true
-      }
-    })
+    const [metrics, recentJobs] = await Promise.all([
+      prisma.providerMetric.findUnique({
+        where: { providerId: provider.id },
+      }),
+      prisma.job.findMany({
+        where: { providerId: provider.id },
+        orderBy: { completedAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          status: true,
+          budget: true,
+          finalCost: true,
+          completedAt: true,
+        },
+      }),
+    ]);
 
     res.json({
-      success:     true,
+      success: true,
       totalEarned: metrics?.totalEarnedSol ?? 0,
-      metrics,
-      recentJobs
+      totalJobs: metrics?.totalJobs ?? 0,
+      successfulJobs: metrics?.successfulJobs ?? 0,
+      failedJobs: metrics?.failedJobs ?? 0,
+      uptimePercent: metrics?.uptimePercent ?? 0,
+      recentJobs,
     })
   } catch {
     res.status(500).json({ error: 'Stats fetch failed' })

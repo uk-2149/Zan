@@ -241,9 +241,13 @@ model StakeTransaction {
 // JOB
 
 model Job {
-  id       String    @id @default(cuid())
-  clientId String
-  client   User      @relation("ClientJobs", fields: [clientId], references: [id])
+  id            String    @id @default(cuid())
+  // ── On-chain ──
+  jobNumericId  BigInt    @default(autoincrement()) @unique
+  onChainEscrowPda String?
+
+  clientId      String
+  client        User      @relation("ClientJobs", fields: [clientId], references: [id])
 
   // Primary provider assigned to this job
   providerId String?
@@ -256,10 +260,11 @@ model Job {
   // ── Job definition ──
   title         String
   type          String    // "inference" | "render" | "training"
-  dockerImage   String    // "gnet/blender:4.1" — which Docker image to run
+  dockerImage   String    // Public Docker image to run, e.g. "blenderkit/headless-blender:blender-4.1"
   inputUri      String
   outputUri     String?
   jobParams     Json
+  clientWalletAddress String?  // The Solana wallet that signed the on-chain escrow — used for refunds
 
   // Verification provider's output (to compare against primary)
   verificationOutputUri String?
@@ -323,9 +328,11 @@ model Escrow {
   status EscrowStatus @default(LOCKED)
 
   depositTxSig String
+  onChainEscrowPda String?
 
   releasedAt   DateTime?
   releaseTxSig String?
+  settleTxSig  String?
 
   refundedAt  DateTime?
   refundTxSig String?

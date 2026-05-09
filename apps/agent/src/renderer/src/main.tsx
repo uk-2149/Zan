@@ -18,8 +18,10 @@ declare global {
       onDetectStep: (cb: (step: any) => void) => () => void;
       onJobAssigned: (cb: (job: any) => void) => () => void;
       onJobCancelled: (cb: (p: any) => void) => () => void;
+      onJobFinished: (cb: (p: any) => void) => () => void;
       onWsStatus: (cb: (status: string) => void) => () => void;
       updateWallet: (walletAddress: string) => Promise<any>;
+      getWalletBalance: () => Promise<any>;
     };
   }
 }

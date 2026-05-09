@@ -27,6 +27,8 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
   const [steps, setSteps]       = useState<DetectStep[]>(INIT_STEPS);
   const [hardware, setHardware] = useState<any>(null);
   const [price, setPrice]       = useState("0.0010");
+  const [stakeSignature, setStakeSignature] = useState("");
+  const [walletAddress, setWalletAddress] = useState("");
   const [error, setError]       = useState("");
 
   const updateStep = (incoming: DetectStep) => {
@@ -58,8 +60,9 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
     const res = await window.api.registerMachine({
       hardwareInfo:   hardware,
       pricePerHour:   parseFloat(price) || 0.001,
-      stakeSignature: "mock_stake_" + Date.now(), // TODO: real Solana tx
-      stakedAmount:   3,
+      stakeSignature: stakeSignature.trim(),
+      walletAddress:  walletAddress.trim(),
+      stakedAmount:   2,
     });
 
     if (res.success) {
@@ -72,7 +75,7 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
           status:         "ACTIVE",
           tier:           0,
           reputationScore: 0,
-          stakedAmount:   3,
+          stakedAmount:   2,
           pricePerHour:   parseFloat(price),
           metrics: { totalJobs: 0, successfulJobs: 0, totalEarnedSol: 0, uptimePercent: 0 },
         });
@@ -231,15 +234,29 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
               <div className="sb-top">
                 <div>
                   <div className="sb-title">Required stake</div>
-                  <div className="sb-sub">Partially refunded as your tier increases</div>
+                  <div className="sb-sub">Stake via web dashboard and paste tx below</div>
                 </div>
-                <div className="sb-amount">3 SOL</div>
+                <div className="sb-amount">2 SOL</div>
               </div>
-              <div className="sb-rows">
-                <div className="sb-row"><span>Entry stake</span><span>3 SOL</span></div>
-                <div className="sb-row muted"><span>Returned at Tier 1</span><span>−1 SOL</span></div>
-                <div className="sb-row muted"><span>Returned at Tier 2</span><span>−1 SOL</span></div>
-                <div className="sb-row muted"><span>Final locked stake</span><span>1 SOL</span></div>
+              <div className="field mt-4">
+                <label>Wallet Address</label>
+                <input
+                  type="text"
+                  placeholder="Your Solana wallet public key"
+                  className="price-inp w-full mt-1"
+                  value={walletAddress}
+                  onChange={(e) => setWalletAddress(e.target.value)}
+                />
+              </div>
+              <div className="field mt-3">
+                <label>Stake Transaction Signature</label>
+                <input
+                  type="text"
+                  placeholder="Paste transaction signature"
+                  className="price-inp w-full mt-1 font-mono text-xs"
+                  value={stakeSignature}
+                  onChange={(e) => setStakeSignature(e.target.value)}
+                />
               </div>
             </div>
 
@@ -248,10 +265,10 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
             <button
               className="btn-primary btn-full"
               onClick={handleRegister}
-              disabled={!hardware.dockerInstalled}
-              title={!hardware.dockerInstalled ? "Docker required to register" : ""}
+              disabled={!hardware.dockerInstalled || !stakeSignature.trim() || !walletAddress.trim()}
+              title={!hardware.dockerInstalled ? "Docker required to register" : (!stakeSignature ? "Missing tx signature" : "")}
             >
-              Stake 3 SOL & Register Machine
+              Verify Stake & Register Machine
             </button>
 
             <button className="btn-ghost btn-full" onClick={runDetection}>

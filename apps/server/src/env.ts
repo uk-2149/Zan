@@ -24,3 +24,7 @@ export function requireEnv(name: string): string {
 
   return value
 }
+
+export const SOLANA_RPC_URL = requireEnv('SOLANA_RPC_URL')
+export const SOLANA_AUTHORITY_KEYPAIR = requireEnv('SOLANA_AUTHORITY_KEYPAIR')
+export const ESCROW_PROGRAM_ID = requireEnv('ESCROW_PROGRAM_ID')

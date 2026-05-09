@@ -312,6 +312,38 @@ ipcMain.handle("provider:get-stats", async () => {
   }
 });
 
+ipcMain.handle("wallet:get-balance", async () => {
+  try {
+    const token = store.get("token");
+    const providerId = store.get("providerId");
+
+    if (!token || !providerId) return { success: false, balance: null };
+
+    const { data } = await axios.get(
+      `${store.get("apiUrl")}/providers/${providerId}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    const walletAddress = data.provider?.user?.walletAddress;
+    if (!walletAddress) return { success: false, balance: null };
+
+    const rpcUrl = "https://api.devnet.solana.com";
+    const response = await axios.post(rpcUrl, {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "getBalance",
+      params: [walletAddress],
+    });
+
+    const lamports = response.data.result?.value ?? 0;
+    const sol = lamports / 1_000_000_000;
+
+    return { success: true, balance: sol, walletAddress };
+  } catch {
+    return { success: false, balance: null };
+  }
+});
+
 ipcMain.handle("store:get", (_, key: string) => store.get(key as any));
 
 ipcMain.handle("app:open-external", (_, url: string) => shell.openExternal(url));

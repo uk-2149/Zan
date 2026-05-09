@@ -10,6 +10,7 @@ interface Props {
 
 interface WalletSectionProps {
   walletAddress: string | null;
+  walletBalance?: number | null;
 }
 
 export default function DashboardPage({
@@ -27,24 +28,52 @@ export default function DashboardPage({
   const [statusError, setStatusError] = useState("");
   const [currentJob, setCurrentJob] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
   useEffect(() => {
     setProvider(initP);
   }, [initP]);
 
   useEffect(() => {
+    if (!provider) return;
+
+    const refresh = async () => {
+      const r = await window.api.getStats();
+      if (r.success) setStats(r);
+    };
+
+    refresh();
+    const interval = setInterval(refresh, 30_000);
+    return () => clearInterval(interval);
+  }, [provider?.status, provider?.id]);
+
+  useEffect(() => {
     const u1 = window.api.onWsStatus((s: string) => setWsStatus(s as any));
-    const u2 = window.api.onJobAssigned((job: any) => setCurrentJob(job));
-    const u3 = window.api.onJobCancelled(() => setCurrentJob(null));
-    if (provider)
+    const u2 = window.api.onJobAssigned((job: any) => {
+      setCurrentJob(job);
       window.api.getStats().then((r: any) => {
         if (r.success) setStats(r);
       });
+    });
+    const u3 = window.api.onJobCancelled(() => setCurrentJob(null));
+    const u4 = window.api.onJobFinished(() => {
+      setCurrentJob(null);
+      window.api.getStats().then((r: any) => {
+        if (r.success) setStats(r);
+      });
+    });
     return () => {
       u1();
       u2();
       u3();
+      u4();
     };
+  }, []);
+
+  useEffect(() => {
+    window.api.getWalletBalance?.().then((r: any) => {
+      if (r?.success) setWalletBalance(r.balance);
+    });
   }, []);
 
   const toggleStatus = async () => {
@@ -219,15 +248,15 @@ export default function DashboardPage({
                 icon="◎"
                 accent="#f59e0b"
                 label="Total Earned"
-                val={`${Number(stats?.totalEarned ?? 0).toFixed(3)} SOL`}
-                sub="Lifetime"
+                val={`${Number(stats?.totalEarned ?? 0).toFixed(4)} SOL`}
+                sub={`${stats?.successfulJobs ?? 0} of ${stats?.totalJobs ?? 0} successful`}
               />
               <StatCard
                 icon="✓"
                 accent="#10b981"
                 label="Jobs Completed"
-                val={provider.metrics?.totalJobs ?? 0}
-                sub={`${provider.metrics?.successfulJobs ?? 0} successful`}
+                val={stats?.totalJobs ?? provider.metrics?.totalJobs ?? 0}
+                sub={`${stats?.successfulJobs ?? provider.metrics?.successfulJobs ?? 0} successful`}
               />
               <StatCard
                 icon="★"
@@ -303,6 +332,7 @@ export default function DashboardPage({
             {/* Wallet section — passes onUserUpdate up to App */}
             <WalletSection
               walletAddress={user.walletAddress ?? null}
+              walletBalance={walletBalance}
             />
           </div>
         )}
@@ -368,6 +398,7 @@ function TierBar({ tier, jobs }: { tier: number; jobs: number }) {
 
 function WalletSection({
   walletAddress,
+  walletBalance,
 }: WalletSectionProps) {
   const [copied, setCopied] = useState(false);
 
@@ -398,6 +429,9 @@ function WalletSection({
             <span className="wallet-label">Solana Wallet</span>
             <span className="wallet-address">
               {walletAddress.slice(0, 6)}...{walletAddress.slice(-6)}
+            </span>
+            <span className="wallet-sub">
+              Wallet Balance: {typeof walletBalance === "number" ? `${walletBalance.toFixed(3)} SOL` : "—"}
             </span>
           </div>
         </div>

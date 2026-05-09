@@ -1,33 +1,28 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import {
-  Terminal,
-  Cpu,
-  Wallet,
-  Plus,
-  CheckCircle2,
-  Loader2,
-  ArrowRight,
-  AlertCircle,
-} from "lucide-react";
+import { Plus, Loader2, AlertCircle, Lock, ArrowRight } from "lucide-react";
 import { api } from "@/lib/api";
+import { useWalletConnection } from "@/hooks/use-wallet-connection";
+import { WalletConnectButton } from "@/components/shared/wallet-connect-button";
 
 // FUNDED = job is waiting for the matchmaker (in queue).
 // Cancelled jobs become FAILED.
 type JobStatus =
   | "CREATED"
   | "FUNDED"
+  | "QUEUED"
   | "ASSIGNED"
   | "RUNNING"
   | "COMPLETED"
   | "FAILED"
   | "DISPUTED"
-  | "PAID";
+  | "PAID"
+  | "REFUNDED";
 
 interface Job {
   id: string;
@@ -35,54 +30,50 @@ interface Job {
   type: string;
   status: JobStatus;
   budget: number;
+  finalCost: number | null;
   createdAt: string;
-  provider: { gpuModel: string; location: string | null } | null;
-  escrow: { status: string; amount: number } | null;
+  completedAt: string | null;
 }
 
-const ACTIVE_STATUSES = new Set<JobStatus>(["FUNDED", "ASSIGNED", "RUNNING"]);
-const DONE_STATUSES = new Set<JobStatus>(["COMPLETED", "PAID"]);
-
-function statusLabel(s: JobStatus): string {
-  const MAP: Record<JobStatus, string> = {
-    CREATED: "Pending",
-    FUNDED: "In Queue",
-    ASSIGNED: "Assigned",
-    RUNNING: "Computing",
-    COMPLETED: "Completed",
-    FAILED: "Failed",
-    DISPUTED: "Disputed",
-    PAID: "Paid",
-  };
-  return MAP[s];
+interface DashboardStats {
+  totalJobs: number;
+  activeJobs: number;
+  totalSpent: number;
+  escrowLocked: number;
 }
 
-function jobProgress(s: JobStatus): number {
-  const MAP: Record<JobStatus, number> = {
-    CREATED: 5,
-    FUNDED: 20,
-    ASSIGNED: 40,
-    RUNNING: 65,
-    COMPLETED: 100,
-    PAID: 100,
-    FAILED: 100,
-    DISPUTED: 100,
-  };
-  return MAP[s];
-}
+const STATUS_CONFIG: Record<
+  JobStatus,
+  { dot: string; badge: string; label: string; pulse: boolean }
+> = {
+  CREATED: { dot: "bg-white/40", badge: "border-white/15 bg-white/5 text-white/60", label: "Pending", pulse: false },
+  FUNDED: { dot: "bg-amber-400", badge: "border-amber-500/20 bg-amber-500/10 text-amber-300", label: "In Queue", pulse: true },
+  QUEUED: { dot: "bg-amber-400", badge: "border-amber-500/20 bg-amber-500/10 text-amber-300", label: "In Queue", pulse: true },
+  ASSIGNED: { dot: "bg-blue-400", badge: "border-blue-500/20 bg-blue-500/10 text-blue-300", label: "Assigned", pulse: true },
+  RUNNING: { dot: "bg-blue-400", badge: "border-blue-500/20 bg-blue-500/10 text-blue-300", label: "Running", pulse: true },
+  COMPLETED: { dot: "bg-green-400", badge: "border-green-500/20 bg-green-500/10 text-green-400", label: "Completed", pulse: false },
+  FAILED: { dot: "bg-red-400", badge: "border-red-500/20 bg-red-500/10 text-red-400", label: "Failed", pulse: false },
+  DISPUTED: { dot: "bg-orange-400", badge: "border-orange-500/20 bg-orange-500/10 text-orange-300", label: "Disputed", pulse: false },
+  REFUNDED: { dot: "bg-white/40", badge: "border-white/15 bg-white/5 text-white/60", label: "Refunded", pulse: false },
+  PAID: { dot: "bg-green-400", badge: "border-green-500/20 bg-green-500/10 text-green-400", label: "Paid", pulse: false },
+};
 
-function statusColors(s: JobStatus): string {
-  if (DONE_STATUSES.has(s))
-    return "bg-green-500/10 border-green-500/20 text-green-400";
-  if (s === "FAILED") return "bg-red-500/10 border-red-500/20 text-red-400";
-  if (s === "DISPUTED")
-    return "bg-orange-500/10 border-orange-500/20 text-orange-400";
-  return "bg-brand-cyan/10 border-brand-cyan/20 text-brand-cyan";
+function StatusBadge({ status }: { status: JobStatus }) {
+  const cfg = STATUS_CONFIG[status];
+  return (
+    <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${cfg.badge}`}>
+      <span className={`relative inline-flex h-2 w-2 rounded-full ${cfg.dot}`}>
+        {cfg.pulse && <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${cfg.dot} opacity-70`} />}
+      </span>
+      {cfg.label}
+    </span>
+  );
 }
 
 export default function ClientDashboard(): React.JSX.Element {
-  const { data: session } = useSession({ required: true });
+  const { data: session, status } = useSession({ required: true });
   const router = useRouter();
+  const { connected, balance, shortAddress } = useWalletConnection();
 
   useEffect(() => {
     if (session?.user && (session.user as any).role === "PROVIDER") {
@@ -93,18 +84,35 @@ export default function ClientDashboard(): React.JSX.Element {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalJobs: 0,
+    activeJobs: 0,
+    totalSpent: 0,
+    escrowLocked: 0,
+  });
+  const [page, setPage] = useState(1);
+  const limit = 20;
 
   useEffect(() => {
-    api.get("/api/jobs/my-jobs?limit=10")
-      .then((d) => setJobs(d.jobs ?? []))
+    if (status !== "authenticated") return;
+    setLoading(true);
+    setFetchError(false);
+    Promise.all([
+      api.get(`/api/jobs/my-jobs?page=${page}`),
+      api.get("/api/jobs/my-stats"),
+    ])
+      .then(([jobsRes, statsRes]) => {
+        setJobs(jobsRes.jobs ?? []);
+        setStats(statsRes);
+      })
       .catch(() => setFetchError(true))
       .finally(() => setLoading(false));
-  }, []);
+  }, [page, status]);
 
-  const activeCount = jobs.filter((j) => ACTIVE_STATUSES.has(j.status)).length;
-  const lockedAmount = jobs
-    .filter((j) => j.escrow?.status === "LOCKED")
-    .reduce((sum, j) => sum + Number(j.escrow?.amount ?? 0), 0);
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(stats.totalJobs / limit)),
+    [stats.totalJobs],
+  );
 
   return (
     <div className="min-h-screen bg-brand-dark pt-10 pb-24 relative overflow-hidden">
@@ -141,49 +149,61 @@ export default function ClientDashboard(): React.JSX.Element {
           </motion.div>
         </div>
 
-        {/*Quick Metrics*/}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <div className="mb-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 text-lg">◎</div>
+            <div>
+              <p className="text-xs text-white/40">Wallet Balance</p>
+              <p className="text-lg font-bold text-white font-mono">
+                {connected && balance !== null ? `${balance.toFixed(3)} SOL` : "—"}
+              </p>
+            </div>
+          </div>
+          {connected ? (
+            <span className="text-xs text-green-400 font-mono">{shortAddress}</span>
+          ) : (
+            <WalletConnectButton showBalance={false} />
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           {[
-            {
-              label: "Active Deployments",
-              value: loading ? "—" : String(activeCount),
-              icon: Terminal,
-              color: "text-brand-cyan",
-            },
-            {
-              label: "Total Jobs",
-              value: loading ? "—" : String(jobs.length),
-              icon: Cpu,
-              color: "text-white",
-            },
-            {
-              label: "Escrow Locked",
-              value: loading ? "—" : `${lockedAmount.toFixed(2)} SOL`,
-              icon: Wallet,
-              color: "text-brand-teal",
-            },
-          ].map((metric, idx) => (
+            ["🖥️", "Active Deployments", String(stats.activeJobs)],
+            ["📦", "Total Jobs", String(stats.totalJobs)],
+            ["◎", "Total Spent", `${stats.totalSpent.toFixed(3)} SOL`],
+          ].map(([icon, label, value], idx) => (
             <motion.div
-              key={idx}
+              key={label}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: idx * 0.1 }}
-              className="p-6 rounded-3xl border border-white/5 bg-brand-gray/30 backdrop-blur-xl flex items-center gap-6 group hover:border-brand-cyan/30 transition-colors"
+              className="p-5 rounded-2xl border border-white/8 bg-white/[0.025]"
             >
-              <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-brand-cyan/10 transition-colors">
-                <metric.icon className={`w-6 h-6 ${metric.color}`} />
-              </div>
-              <div>
-                <p className="text-white/50 text-sm font-light mb-1">
-                  {metric.label}
-                </p>
-                <p className="text-3xl font-bold text-white tracking-tight">
-                  {metric.value}
-                </p>
-              </div>
+              <p className="text-2xl">{icon}</p>
+              <p className="mt-2 text-xs text-white/40">{label}</p>
+              <p className="text-xl font-bold text-white font-mono">{value}</p>
             </motion.div>
           ))}
         </div>
+
+        {stats.escrowLocked > 0 && (
+          <div className="mb-6 flex items-center gap-2 text-sm text-amber-400">
+            <Lock className="h-4 w-4" />
+            {stats.escrowLocked.toFixed(3)} SOL locked in escrow
+          </div>
+        )}
+
+        {stats.activeJobs > 0 && (
+          <div className="flex items-center gap-3 rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 mb-6">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute h-2 w-2 rounded-full bg-blue-400 opacity-75" />
+              <span className="relative h-2 w-2 rounded-full bg-blue-400" />
+            </span>
+            <p className="text-sm text-blue-300">
+              <strong>{stats.activeJobs}</strong> job{stats.activeJobs > 1 ? "s" : ""} currently running on the network
+            </p>
+          </div>
+        )}
 
         {/* Jobs table */}
         <motion.div
@@ -193,13 +213,7 @@ export default function ClientDashboard(): React.JSX.Element {
           className="rounded-3xl border border-white/10 bg-brand-gray/20 backdrop-blur-xl overflow-hidden shadow-2xl"
         >
           <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white flex items-center gap-3">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-cyan opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-cyan" />
-              </span>
-              Recent Workloads
-            </h2>
+            <h2 className="text-xl font-bold text-white flex items-center gap-3">Recent Workloads</h2>
             <button
               onClick={() => router.push("/client/submit")}
               className="text-sm text-white/50 hover:text-brand-cyan transition-colors flex items-center gap-1"
@@ -223,89 +237,107 @@ export default function ClientDashboard(): React.JSX.Element {
           )}
 
           {!loading && !fetchError && jobs.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
-              <p className="text-white/30 text-sm">No jobs yet.</p>
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-brand-cyan/5 border border-brand-cyan/20 text-3xl">
+                🚀
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">No workloads yet</h3>
+              <p className="text-white/40 text-sm max-w-xs mb-8">
+                Deploy your first compute job to get started. Upload a Python script or connect to a render pipeline.
+              </p>
               <Link
                 href="/client/submit"
                 className="px-5 py-2.5 rounded-full bg-brand-cyan text-brand-dark text-sm font-bold hover:bg-white transition-all"
               >
-                Deploy your first workload
+                + Deploy Workload
               </Link>
             </div>
           )}
 
           {!loading && !fetchError && jobs.length > 0 && (
-            <div className="flex flex-col">
-              {jobs.map((job, idx) => (
+            <div className="grid grid-cols-1 gap-4 p-6">
+              {jobs.map((job) => (
                 <Link
                   key={job.id}
                   href={`/client/jobs/${job.id}`}
-                  className="p-8 border-b border-white/5 hover:bg-white/2 transition-colors group block"
+                  className="group rounded-2xl border border-white/8 bg-white/[0.025] p-5 transition-all hover:border-white/15 hover:bg-white/[0.04]"
                 >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
-                    <div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="font-mono text-xs text-brand-cyan bg-brand-cyan/10 px-2 py-1 rounded border border-brand-cyan/20">
-                          {job.id.slice(0, 12)}…
-                        </span>
-                        <span className="text-xs text-white/40 capitalize">
-                          {job.type}
-                        </span>
-                        {job.provider && (
-                          <span className="text-xs text-white/30">
-                            {job.provider.gpuModel}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="text-xl font-bold text-white">
-                        {job.title}
-                      </h3>
-                    </div>
-
-                    <div className="flex items-center gap-6">
-                      <div className="text-right">
-                        <p className="text-sm text-white/40 mb-1">Budget</p>
-                        <p className="font-mono text-white">
-                          {Number(job.budget).toFixed(3)} SOL
-                        </p>
-                      </div>
-                      <div
-                        className={`px-4 py-2 rounded-full border text-sm font-medium flex items-center gap-2 ${statusColors(job.status)}`}
-                      >
-                        {DONE_STATUSES.has(job.status) ? (
-                          <CheckCircle2 className="w-4 h-4" />
-                        ) : (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        )}
-                        {statusLabel(job.status)}
-                      </div>
-                    </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="rounded-lg bg-white/8 px-2.5 py-1 text-xs font-mono text-white/50">
+                      {job.type}
+                    </span>
+                    <StatusBadge status={job.status} />
                   </div>
 
-                  {/* Progress bar */}
-                  <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden relative">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${jobProgress(job.status)}%` }}
-                      transition={{
-                        duration: 1.2,
-                        delay: 0.4 + idx * 0.1,
-                        ease: "easeOut",
-                      }}
-                      className={`absolute top-0 left-0 h-full rounded-full ${
-                        DONE_STATUSES.has(job.status)
-                          ? "bg-green-400"
-                          : job.status === "FAILED"
-                            ? "bg-red-400"
-                            : "bg-brand-cyan shadow-[0_0_8px_#00ffd1]"
-                      }`}
-                    />
+                  <h3 className="text-base font-semibold text-white mb-1 truncate">{job.title}</h3>
+                  <p className="text-xs font-mono text-white/25 mb-4 truncate">{job.id}</p>
+
+                  <div className="flex items-end justify-between">
+                    <div>
+                      {job.status === "COMPLETED" && job.finalCost ? (
+                        <>
+                          <p className="text-xs text-white/30">Spent</p>
+                          <p className="text-base font-bold text-green-400 font-mono">
+                            ◎ {Number(job.finalCost).toFixed(3)}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs text-white/30">Budget</p>
+                          <p className="text-base font-semibold text-white/70 font-mono">
+                            ◎ {Number(job.budget).toFixed(3)}
+                          </p>
+                        </>
+                      )}
+                      {job.status === "FAILED" && (
+                        <p className="text-xs text-green-400/70 mt-1">
+                          Refunded: ◎ {Number(job.budget).toFixed(3)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-white/25">
+                        {new Date(job.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                      {job.completedAt && (
+                        <p className="text-xs text-white/20">
+                          Completed {new Date(job.completedAt).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </Link>
               ))}
             </div>
           )}
         </motion.div>
+
+        {stats.totalJobs > limit && (
+          <div className="flex items-center justify-center gap-3 mt-8">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/50 disabled:opacity-30"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-white/30">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/50 disabled:opacity-30"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

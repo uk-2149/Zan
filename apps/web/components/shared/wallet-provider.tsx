@@ -11,7 +11,7 @@ import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const network = clusterApiUrl("devnet");
+  const network = process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? clusterApiUrl("devnet");
   const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
 
   return (

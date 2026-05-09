@@ -48,6 +48,11 @@ contextBridge.exposeInMainWorld("api", {
     ipcRenderer.on("job-cancelled", handler);
     return () => ipcRenderer.removeListener("job-cancelled", handler);
   },
+  onJobFinished: (cb: (payload: any) => void) => {
+    const handler = (_: any, payload: any) => cb(payload);
+    ipcRenderer.on("job-finished", handler);
+    return () => ipcRenderer.removeListener("job-finished", handler);
+  },
 
   updateWallet: (walletAddress: string) =>
     ipcRenderer.invoke("auth:update-wallet", { walletAddress }),
@@ -60,4 +65,5 @@ contextBridge.exposeInMainWorld("api", {
 
   openExternal: (url: string) => ipcRenderer.invoke("app:open-external", url),
   getVerifyUrl: () => ipcRenderer.invoke("app:get-verify-url"),
+  getWalletBalance: () => ipcRenderer.invoke("wallet:get-balance"),
 });

@@ -1,7 +1,7 @@
 import WebSocket from "ws";
 import { store } from "./store";
 import { BrowserWindow } from "electron";
-import { runJob, type JobPayload } from "./job-runner";
+import { cancelRunningJob, runJob, type JobPayload } from "./job-runner";
 
 let ws: WebSocket | null = null;
 let reconnectTimer: NodeJS.Timeout | null = null;
@@ -44,21 +44,32 @@ export function connectWebSocket(win: BrowserWindow | null) {
               jobId: jobPayload.jobId,
               message: progress,
             });
-          }).catch((err) => {
-            console.error("[WS] Job runner crashed:", err.message);
-            store.set("currentJobId", null);
-            mainWin?.webContents.send("job-error", {
-              jobId: jobPayload.jobId,
-              error: err.message,
+          })
+            .then(() => {
+              store.set("currentJobId", null);
+              mainWin?.webContents.send("job-finished", { jobId: jobPayload.jobId });
+            })
+            .catch((err) => {
+              console.error("[WS] Job runner crashed:", err.message);
+              store.set("currentJobId", null);
+              mainWin?.webContents.send("job-error", {
+                jobId: jobPayload.jobId,
+                error: err.message,
+              });
             });
-          });
           break;
         }
 
-        case "JOB_CANCELLED":
+        case "JOB_CANCELLED": {
+          const currentJobId = store.get("currentJobId");
+          const cancelledJobId = String(msg.payload?.jobId ?? currentJobId ?? "");
+          if (cancelledJobId) {
+            void cancelRunningJob(cancelledJobId);
+          }
           store.set("currentJobId", null);
           mainWin?.webContents.send("job-cancelled", msg.payload);
           break;
+        }
 
         case "PING":
           ws?.send(JSON.stringify({ type: "PONG" }));
