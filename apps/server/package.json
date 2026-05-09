@@ -26,9 +26,7 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1044.0",
-    "@aws-sdk/lib-storage": "^3.1044.0",
-    "@aws-sdk/s3-request-presigner": "^3.1044.0",
+    "@azure/storage-blob": "^12.31.0",
     "@coral-xyz/anchor": "^0.32.1",
     "@repo/contracts-sdk": "workspace:*",
     "@repo/crypto": "workspace:*",

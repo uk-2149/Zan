@@ -4,15 +4,15 @@ import * as solanaService from "../services/solana.service.js";
 import { enqueueJob } from "../queues/jobQueue.js";
 import { JOB_TYPES } from "../config/jobTypes.js";
 import type { JobTypeKey } from "../config/jobTypes.js";
-import { BUCKETS, getPresignedUrl } from "../lib/minio.js";
+import { CONTAINERS, generateReadSASUrl } from "../lib/azure.js";
 import { sendCancelToProvider } from "../ws/server.js";
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
-function extractMinioKey(uri: string, bucket: string): string | null {
+function extractAzureBlobName(uri: string, container: string): string | null {
   try {
     const parsed = new URL(uri);
-    const prefix = `/${bucket}/`;
+    const prefix = `/${container}/`;
     if (!parsed.pathname.startsWith(prefix)) return null;
     return parsed.pathname.slice(prefix.length);
   } catch {
@@ -20,12 +20,12 @@ function extractMinioKey(uri: string, bucket: string): string | null {
   }
 }
 
-async function maybePresignMinioUri(uri: string | null, bucket: string): Promise<string | null> {
+async function maybePresignAzureUri(uri: string | null, container: string): Promise<string | null> {
   if (!uri) return null;
-  const key = extractMinioKey(uri, bucket);
-  if (!key) return uri;
+  const blobName = extractAzureBlobName(uri, container);
+  if (!blobName) return uri;
   try {
-    return await getPresignedUrl(bucket, key);
+    return await generateReadSASUrl(container, blobName);
   } catch {
     return uri;
   }
@@ -220,17 +220,17 @@ export const getJobById = async (req: Request, res: Response) => {
       ...job,
       jobNumericId: job.jobNumericId?.toString()
     };
-    responseJob.outputUri = await maybePresignMinioUri(job.outputUri, BUCKETS.outputs);
+    responseJob.outputUri = await maybePresignAzureUri(job.outputUri, CONTAINERS.outputs);
 
     if (responseJob.executionMetadata && typeof responseJob.executionMetadata === "object") {
       const meta: any = { ...responseJob.executionMetadata };
-      meta.logsUri = await maybePresignMinioUri(meta.logsUri ?? null, BUCKETS.outputs);
+      meta.logsUri = await maybePresignAzureUri(meta.logsUri ?? null, CONTAINERS.outputs);
 
       if (Array.isArray(meta.outputFiles)) {
         meta.outputFiles = await Promise.all(
           meta.outputFiles.map(async (file: any) => ({
             ...file,
-            uri: await maybePresignMinioUri(file?.uri ?? null, BUCKETS.outputs),
+            uri: await maybePresignAzureUri(file?.uri ?? null, CONTAINERS.outputs),
           })),
         );
       }

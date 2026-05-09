@@ -3,7 +3,7 @@ import { prisma } from "@repo/db";
 import { makeRedisConnection } from "../lib/redis.js";
 import { getConnectedProviderIds, sendJobToProvider } from "../ws/server.js";
 import { QUEUE_NAME, type JobMatchPayload } from "../queues/jobQueue.js";
-import { getPresignedUrl, BUCKETS } from "../lib/minio.js";
+import { CONTAINERS, generateReadSASUrl } from "../lib/azure.js";
 
 async function processJob(bullJob: BullJob<JobMatchPayload>): Promise<void> {
   const { jobId } = bullJob.data;
@@ -129,18 +129,15 @@ async function processJob(bullJob: BullJob<JobMatchPayload>): Promise<void> {
   // Presign the inputUri so the agent can download the file
   let downloadableInputUri = job.inputUri;
   try {
-    const endpoint = process.env.MINIO_ENDPOINT ?? "http://localhost:9000";
-    if (job.inputUri.startsWith(endpoint)) {
-      try {
-        const parsed = new URL(job.inputUri);
-        const prefix = `/${BUCKETS.inputs}/`;
-        if (parsed.pathname.startsWith(prefix)) {
-          const key = parsed.pathname.slice(prefix.length);
-          downloadableInputUri = await getPresignedUrl(BUCKETS.inputs, key, 21600); // 6 hours
-        }
-      } catch (e) {
-        console.warn(`[Matchmaker] Error parsing inputUri URL:`, e);
+    try {
+      const parsed = new URL(job.inputUri);
+      const prefix = `/${CONTAINERS.inputs}/`;
+      if (parsed.pathname.startsWith(prefix)) {
+        const blobName = parsed.pathname.slice(prefix.length);
+        downloadableInputUri = await generateReadSASUrl(CONTAINERS.inputs, blobName, 21600); // 6 hours
       }
+    } catch (e) {
+      console.warn(`[Matchmaker] Error parsing inputUri URL:`, e);
     }
   } catch (err) {
     console.warn(`[Matchmaker] Failed to presign inputUri, using original`, err);

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { verifyJWT } from "../middlewares/verifyJWT.js";
-import { uploadToMinio, getPresignedUrl, BUCKETS } from "../lib/minio.js";
+import { uploadToAzure, generateReadSASUrl, CONTAINERS } from "../lib/azure.js";
 import * as path from "path";
 import * as crypto from "crypto";
 
@@ -42,13 +42,13 @@ router.post("/", verifyJWT, upload.single("file"), async (req, res) => {
       : path.extname(req.file.originalname);
     const key = `${userId}/${uniqueId}${ext}`;
 
-    const uri = await uploadToMinio(
-      BUCKETS.inputs,
+    const uri = await uploadToAzure(
+      CONTAINERS.inputs,
       key,
       req.file.buffer,
       req.file.mimetype,
     );
-    const downloadUrl = await getPresignedUrl(BUCKETS.inputs, key);
+    const downloadUrl = await generateReadSASUrl(CONTAINERS.inputs, key);
 
     console.log(`[Upload] ${req.file.originalname} → ${uri}`);
 

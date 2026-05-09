@@ -1,23 +1,7 @@
 version: "3.8"
 services:
-  minio:
-    image: minio/minio:latest
-    container_name: gnet-minio
-    ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # MinIO Console UI
-    environment:
-      MINIO_ROOT_USER: gnet_admin
-      MINIO_ROOT_PASSWORD: gnet_secret_123
-    volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
-
   redis:
     image: redis:alpine
     container_name: gnet-redis
     ports:
       - "6379:6379"
-
-volumes:
-  minio_data:
