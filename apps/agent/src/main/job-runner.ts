@@ -45,7 +45,10 @@ interface ExecutionMetadata {
   outputFiles: { filename: string; uri: string; size: number }[];
 }
 
-async function downloadInput(inputUri: string, destPath: string): Promise<void> {
+async function downloadInput(
+  inputUri: string,
+  destPath: string,
+): Promise<void> {
   if (inputUri.startsWith("http")) {
     const response = await axios.get(inputUri, { responseType: "stream" });
     const writer = fs.createWriteStream(destPath);
@@ -77,23 +80,54 @@ function isBlenderJob(payload: JobPayload): boolean {
 }
 
 function isFfmpegJob(payload: JobPayload): boolean {
-  return payload.type === "ffmpeg_transcode" || payload.dockerImage.includes("ffmpeg");
+  return (
+    payload.type === "ffmpeg_transcode" ||
+    payload.dockerImage.includes("ffmpeg")
+  );
 }
 
 function isStableDiffusionJob(payload: JobPayload): boolean {
-  return payload.type === "stable_diffusion" || payload.dockerImage.includes("stable-diffusion");
-}
-
-function isCudaPythonJob(payload: JobPayload): boolean {
-  return payload.type === "python_gpu";
+  return (
+    payload.type === "stable_diffusion" ||
+    payload.dockerImage.includes("stable-diffusion")
+  );
 }
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
+function inferPythonScriptPackages(scriptFilePath: string): string[] {
+  try {
+    const contents = fs.readFileSync(scriptFilePath, "utf8");
+    const packages = new Set<string>();
+
+    if (/\b(import|from)\s+torch\b/.test(contents)) packages.add("torch");
+    if (/\b(import|from)\s+diffusers\b/.test(contents))
+      packages.add("diffusers");
+    if (/\b(import|from)\s+transformers\b/.test(contents))
+      packages.add("transformers");
+    if (/\b(import|from)\s+accelerate\b/.test(contents))
+      packages.add("accelerate");
+    if (/\b(import|from)\s+safetensors\b/.test(contents))
+      packages.add("safetensors");
+    if (/\b(import|from)\s+(huggingface_hub|huggingface-hub)\b/.test(contents))
+      packages.add("huggingface_hub");
+    if (/\b(import|from)\s+(PIL|pillow)\b/.test(contents))
+      packages.add("pillow");
+
+    return [...packages];
+  } catch {
+    return [];
+  }
+}
+
 function dockerPlatformFlag(payload: JobPayload): string {
-  if (process.platform === "darwin" && process.arch === "arm64" && isBlenderJob(payload)) {
+  if (
+    process.platform === "darwin" &&
+    process.arch === "arm64" &&
+    isBlenderJob(payload)
+  ) {
     return "--platform linux/amd64";
   }
   return "";
@@ -105,7 +139,10 @@ async function stopContainer(containerName: string): Promise<void> {
   } catch {}
 }
 
-export async function cancelRunningJob(jobId: string, reason = "Job cancelled by client"): Promise<boolean> {
+export async function cancelRunningJob(
+  jobId: string,
+  reason = "Job cancelled by client",
+): Promise<boolean> {
   const active = activeJobs.get(jobId);
   if (!active) return false;
 
@@ -116,18 +153,35 @@ export async function cancelRunningJob(jobId: string, reason = "Job cancelled by
   return true;
 }
 
-function buildDockerCmd(payload: JobPayload, inputPath: string, outputPath: string, containerName: string): string {
+function buildDockerCmd(
+  payload: JobPayload,
+  inputPath: string,
+  outputPath: string,
+  containerName: string,
+): string {
   const envFlags = Object.entries(payload.jobParams)
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
-    .map(([k, v]) => `-e JOB_${k.toUpperCase()}="${String(v).replace(/"/g, '\\"')}"`)
+    .map(
+      ([k, v]) =>
+        `-e JOB_${k.toUpperCase()}="${String(v).replace(/"/g, '\\"')}"`,
+    )
     .join(" ");
+
+  const isPythonScript =
+    payload.type === "python_script" ||
+    payload.type === "python_gpu" ||
+    payload.inputUri.endsWith(".py");
 
   const baseFlags = [
     "docker run --rm",
     `--name ${containerName}`,
     dockerPlatformFlag(payload),
-    isBlenderJob(payload) || isStableDiffusionJob(payload) ? "--entrypoint sh" : "",
-    process.env.HAS_GPU === "true" || isCudaPythonJob(payload) || isStableDiffusionJob(payload) ? "--gpus all" : "",
+    isBlenderJob(payload) || isStableDiffusionJob(payload) || isPythonScript
+      ? "--entrypoint sh"
+      : "",
+    process.env.HAS_GPU === "true" || isStableDiffusionJob(payload)
+      ? "--gpus all"
+      : "",
     `-v "${inputPath}":/input:ro`,
     `-v "${outputPath}":/output`,
     `-w /output`,
@@ -136,71 +190,88 @@ function buildDockerCmd(payload: JobPayload, inputPath: string, outputPath: stri
     envFlags,
     "--memory=8g",
     `--stop-timeout ${payload.timeLimitSecs}`,
-  ].filter(Boolean).join(" ");
-
-  const isPythonScript =
-    payload.type === "python_script" ||
-    payload.type === "python_gpu" ||
-    payload.inputUri.endsWith(".py");
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   if (isPythonScript) {
     const filename = path.basename(payload.inputUri.split("?")[0]);
-    const scriptPath = filename.endsWith(".py") ? `/input/${filename}` : "/input/script.py";
+    const scriptPath = filename.endsWith(".py")
+      ? `/input/${filename}`
+      : "/input/script.py";
     const rawPackages = payload.jobParams?.packages;
     const extraPackages = Array.isArray(rawPackages)
       ? rawPackages.map(String)
       : typeof rawPackages === "string"
-        ? rawPackages.split(/[,\s]+/).filter(Boolean)
+        ? rawPackages.split(/[\s,]+/).filter(Boolean)
         : [];
-    const packages = payload.type === "python_gpu"
-      ? [
+
+    let packages = Array.from(new Set(extraPackages));
+    if (filename.endsWith(".py")) {
+      const localScriptPath = path.join(inputPath, filename);
+      packages = [...packages, ...inferPythonScriptPackages(localScriptPath)];
+    }
+
+    if (payload.type === "python_gpu" || payload.type === "python_script") {
+      packages = Array.from(
+        new Set([
+          "torch",
           "diffusers",
           "transformers",
           "accelerate",
           "safetensors",
           "pillow",
           "huggingface_hub",
-          ...extraPackages,
-        ]
-      : extraPackages;
-
-    if (packages.length > 0) {
-      const install = `python -m pip install --no-cache-dir --upgrade ${packages.map(shellQuote).join(" ")}`;
-      const script = `${install} && python ${shellQuote(scriptPath)}`;
-      return `${baseFlags} ${payload.dockerImage} sh -lc ${shellQuote(script)}`;
+          ...packages,
+        ]),
+      );
     }
 
-    return `${baseFlags} ${payload.dockerImage} python ${shellQuote(scriptPath)}`;
+    const installCmd =
+      packages.length > 0
+        ? `python -m pip install --no-cache-dir --upgrade ${packages.map(shellQuote).join(" ")} && `
+        : "";
+    const command = `${installCmd}python ${shellQuote(scriptPath)}`;
+    return `${baseFlags} ${payload.dockerImage} -lc ${shellQuote(command)}`;
   }
 
   if (isBlenderJob(payload)) {
-    const filename = path.basename(payload.inputUri.split("?")[0]) || "project.blend";
+    const filename =
+      path.basename(payload.inputUri.split("?")[0]) || "project.blend";
     const blendPath = `/input/${filename}`;
     // -b:   run in background (headless — Xvfb in the container handles the display)
     // -o:   output path prefix (renders to /output/render_0001.png etc.)
     // -F:   output format PNG (explicit, override .blend setting)
     // -a:   render full animation (uses frame range from .blend file)
-    const outputFormat = payload.jobParams?.outputFormat || "PNG";
-    // -E CYCLES: forces Cycles render engine (EEVEE requires OpenGL display context which fails headlessly on some setups)
-    let renderArgs = `-b ${shellQuote(blendPath)} -E CYCLES -o /output/render_ -F ${shellQuote(outputFormat)} -a`;
+    const outputFormat = String(payload.jobParams?.outputFormat || "PNG");
+    const quotedBlendPath = `"${blendPath.replace(/"/g, '\\"')}"`;
+    const quotedOutputFormat = `"${outputFormat.replace(/"/g, '\\"')}"`;
+    let renderArgs = `-b ${quotedBlendPath} -E CYCLES -o /output/render_ -F ${quotedOutputFormat} -s 1 -e 20 -a`;
 
     // Allow optional frame range override via jobParams
     const frameStart = payload.jobParams?.frameStart;
     const frameEnd = payload.jobParams?.frameEnd;
     if (frameStart !== undefined && frameStart !== null && frameStart !== "") {
-      renderArgs = `-b ${shellQuote(blendPath)} -E CYCLES -o /output/render_ -F ${shellQuote(outputFormat)} -s ${Number(frameStart)} -e ${Number(frameEnd || frameStart)} -a`;
+      renderArgs = `-b ${quotedBlendPath} -E CYCLES -o /output/render_ -F ${quotedOutputFormat} -s ${Number(frameStart)} -e ${Number(frameEnd || frameStart)} -a`;
     }
 
     const script = [
-      'BLENDER_BIN=$(command -v blender || true)',
-      'if [ -z "$BLENDER_BIN" ]; then',
-      '  if [ -x /home/headless/blender/blender ]; then BLENDER_BIN=/home/headless/blender/blender;',
-      '  elif [ -x /home/headless/blender ]; then BLENDER_BIN=/home/headless/blender;',
-      '  else echo "Blender binary not found in image" >&2; exit 127;',
-      '  fi',
-      'fi',
+      "BLENDER_BIN=$(command -v blender || true)",
+      'if [ -z "$BLENDER_BIN" ]',
+      "then",
+      "  if [ -x /home/headless/blender/blender ]",
+      "  then BLENDER_BIN=/home/headless/blender/blender",
+      "  elif [ -x /home/headless/blender ]",
+      "  then BLENDER_BIN=/home/headless/blender",
+      "  elif [ -x /usr/bin/blender ]",
+      "  then BLENDER_BIN=/usr/bin/blender",
+      "  elif [ -x /bin/blender ]",
+      "  then BLENDER_BIN=/bin/blender",
+      '  else echo "Blender binary not found in image" >&2; exit 127',
+      "  fi",
+      "fi",
       `"$BLENDER_BIN" ${renderArgs}`,
-    ].join("; ");
+    ].join("\n");
 
     return `${baseFlags} ${payload.dockerImage} -lc ${shellQuote(script)}`;
   }
@@ -208,10 +279,11 @@ function buildDockerCmd(payload: JobPayload, inputPath: string, outputPath: stri
   if (isFfmpegJob(payload)) {
     const filename = path.basename(payload.inputUri.split("?")[0]) || "input";
     const inputFile = `/input/${filename}`;
-    const outputFormat = String(payload.jobParams?.outputFormat || "mp4")
-      .replace(/^\./, "")
-      .replace(/[^a-zA-Z0-9]/g, "")
-      .toLowerCase() || "mp4";
+    const outputFormat =
+      String(payload.jobParams?.outputFormat || "mp4")
+        .replace(/^\./, "")
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .toLowerCase() || "mp4";
     return `${baseFlags} ${payload.dockerImage} -y -i ${shellQuote(inputFile)} ${shellQuote(`/output/output.${outputFormat}`)}`;
   }
 
@@ -227,7 +299,10 @@ function buildDockerCmd(payload: JobPayload, inputPath: string, outputPath: stri
   return `${baseFlags} ${payload.dockerImage}`;
 }
 
-export async function runJob(payload: JobPayload, onProgress?: (msg: string) => void): Promise<void> {
+export async function runJob(
+  payload: JobPayload,
+  onProgress?: (msg: string) => void,
+): Promise<void> {
   const log = (msg: string) => {
     console.log(`[JobRunner] ${msg}`);
     onProgress?.(msg);
@@ -240,7 +315,8 @@ export async function runJob(payload: JobPayload, onProgress?: (msg: string) => 
   fs.mkdirSync(inputDir, { recursive: true });
   fs.mkdirSync(outputPath, { recursive: true });
 
-  const inputFilename = path.basename(payload.inputUri.split("?")[0]) || "input";
+  const inputFilename =
+    path.basename(payload.inputUri.split("?")[0]) || "input";
   const inputPath = path.join(inputDir, inputFilename);
 
   const startTime = Date.now();
@@ -276,25 +352,38 @@ export async function runJob(payload: JobPayload, onProgress?: (msg: string) => 
     await downloadInput(payload.inputUri, inputPath);
     log(`Input saved to ${inputPath}`);
     if (activeJob.cancelled) {
-      throw new Error(activeJob.cancelReason ?? "Job cancelled before execution started");
+      throw new Error(
+        activeJob.cancelReason ?? "Job cancelled before execution started",
+      );
     }
 
     log(`Pulling image: ${payload.dockerImage}`);
     try {
       const platformFlag = dockerPlatformFlag(payload);
       if (platformFlag) {
-        log("Apple Silicon detected: using linux/amd64 Docker platform for Blender image compatibility");
+        log(
+          "Apple Silicon detected: using linux/amd64 Docker platform for Blender image compatibility",
+        );
       }
       await execAsync(`docker pull ${platformFlag} ${payload.dockerImage}`);
       log("Image ready");
     } catch (err) {
-      log(`Warning: Failed to pull image (might be a local image). Continuing...`);
+      log(
+        `Warning: Failed to pull image (might be a local image). Continuing...`,
+      );
     }
     if (activeJob.cancelled) {
-      throw new Error(activeJob.cancelReason ?? "Job cancelled before execution started");
+      throw new Error(
+        activeJob.cancelReason ?? "Job cancelled before execution started",
+      );
     }
 
-    const dockerCmd = buildDockerCmd(payload, inputDir, outputPath, activeJob.containerName);
+    const dockerCmd = buildDockerCmd(
+      payload,
+      inputDir,
+      outputPath,
+      activeJob.containerName,
+    );
     log(`Running: ${dockerCmd}`);
 
     const containerPromise = new Promise<number>((resolve, reject) => {
@@ -320,7 +409,10 @@ export async function runJob(payload: JobPayload, onProgress?: (msg: string) => 
     let timeoutHandle: NodeJS.Timeout | null = null;
     const timeoutPromise = new Promise<number>((_, reject) => {
       timeoutHandle = setTimeout(() => {
-        void cancelRunningJob(payload.jobId, `Job timed out after ${payload.timeLimitSecs}s`).finally(() => {
+        void cancelRunningJob(
+          payload.jobId,
+          `Job timed out after ${payload.timeLimitSecs}s`,
+        ).finally(() => {
           reject(new Error(`Job timed out after ${payload.timeLimitSecs}s`));
         });
       }, payload.timeLimitSecs * 1000);
@@ -335,7 +427,7 @@ export async function runJob(payload: JobPayload, onProgress?: (msg: string) => 
       await stopContainer(activeJob.containerName);
     }
     const errMsg = activeJob.cancelled
-      ? activeJob.cancelReason ?? "Job cancelled before completion"
+      ? (activeJob.cancelReason ?? "Job cancelled before completion")
       : `Execution error: ${err.message}`;
     log(errMsg);
     capturedLogs += `\n${errMsg}\n`;
@@ -363,7 +455,9 @@ export async function runJob(payload: JobPayload, onProgress?: (msg: string) => 
   try {
     outputFiles = await uploadOutputDirectory(payload.jobId, outputPath);
     log(`Uploaded ${outputFiles.length} output file(s)`);
-    outputFiles.forEach((f) => log(`  → ${f.filename} (${f.size} bytes): ${f.uri}`));
+    outputFiles.forEach((f) =>
+      log(`  → ${f.filename} (${f.size} bytes): ${f.uri}`),
+    );
   } catch (err: any) {
     log(`Warning: Failed to upload outputs: ${err.message}`);
   }
@@ -371,7 +465,9 @@ export async function runJob(payload: JobPayload, onProgress?: (msg: string) => 
   const metadata: ExecutionMetadata = {
     executionTimeMs,
     vramUsedMb: Math.round(average(metricsSamples.map((m) => m.vramUsedMb))),
-    avgUtilization: Math.round(average(metricsSamples.map((m) => m.utilization))),
+    avgUtilization: Math.round(
+      average(metricsSamples.map((m) => m.utilization)),
+    ),
     peakUtilization: Math.max(0, ...metricsSamples.map((m) => m.utilization)),
     tempDeltaC: Math.max(0, finalTemp - initialTemp),
     powerDrawW: Math.round(average(metricsSamples.map((m) => m.powerDrawW))),
@@ -380,7 +476,8 @@ export async function runJob(payload: JobPayload, onProgress?: (msg: string) => 
     outputFiles,
   };
 
-  const primaryOutputUri = outputFiles.length > 0 ? outputFiles[0].uri : logsUri;
+  const primaryOutputUri =
+    outputFiles.length > 0 ? outputFiles[0].uri : logsUri;
 
   try {
     if (activeJob.cancelled) {

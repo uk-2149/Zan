@@ -39,23 +39,28 @@ async function processJob(bullJob: BullJob<JobMatchPayload>): Promise<void> {
   const connectedProviderIds = getConnectedProviderIds();
   const heartbeatCutoff = new Date(Date.now() - 60_000);
   const enforceVramFilter = job.type !== "python_script";
-  const needsNativeGpu =
-    job.type === "blender_render" ||
-    job.type === "stable_diffusion" ||
-    job.type === "python_gpu";
-  const needsCudaGpu = job.type === "stable_diffusion" || job.type === "python_gpu";
-  const providerWhere: any = {
+  const isBlenderRender = job.type === "blender_render";
+  const needsNativeGpu = job.type === "stable_diffusion";
+  const needsCudaGpu = job.type === "stable_diffusion";
+  const statusAndHeartbeatFilter = {
     status: "ACTIVE",
+    lastHeartbeat: { gte: heartbeatCutoff },
+  };
+  const providerWhere: any = {
     ...(connectedProviderIds.length > 0
       ? {
-          OR: [
-            { lastHeartbeat: { gte: heartbeatCutoff } },
-            { id: { in: connectedProviderIds } },
-          ],
+          OR: [statusAndHeartbeatFilter, { id: { in: connectedProviderIds } }],
         }
-      : { lastHeartbeat: { gte: heartbeatCutoff } }),
+      : statusAndHeartbeatFilter),
     ...(enforceVramFilter && job.requiredVramGB
-      ? { vramGB: { gte: job.requiredVramGB } }
+      ? isBlenderRender
+        ? {
+            OR: [
+              { vramGB: { gte: job.requiredVramGB } },
+              { vramGB: 0, gpuModel: { contains: "Apple" } },
+            ],
+          }
+        : { vramGB: { gte: job.requiredVramGB } }
       : {}),
     ...(job.requiredGpuTier ? { tier: { gte: job.requiredGpuTier } } : {}),
   };

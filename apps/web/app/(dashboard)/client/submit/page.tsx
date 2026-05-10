@@ -67,7 +67,7 @@ const JOB_TYPE_DEFS = [
     label:       "3D Rendering",
     icon:        Monitor,
     desc:        "GPU render farms for Blender, Unreal, and Cinema 4D scene batches.",
-    vramDefault: 16,
+    vramDefault: 0, // needd to change to 4
     ratePerHour: 0.008,
     frameworks:  ["Blender", "Cinema 4D", "Unreal Engine", "V-Ray", "Custom"],
     inputHint:   "s3://bucket/scene.blend",
@@ -266,7 +266,7 @@ export default function SubmitJobPage(): React.ReactElement {
   const [inputUri,        setInputUri]        = useState("");
   const [budget,          setBudget]          = useState("");
   const [duration,        setDuration]        = useState<DurationValue>("medium");
-  const [requiredVram,    setRequiredVram]     = useState("16");
+  const [requiredVram,    setRequiredVram]     = useState("4");
   const [gpuTier,         setGpuTier]         = useState<0 | 1 | 2>(0);
   const [priority,        setPriority]        = useState<Priority>("standard");
   const [notes,           setNotes]           = useState("");
@@ -340,7 +340,7 @@ export default function SubmitJobPage(): React.ReactElement {
     
     if (jobType === "render") {
       mappedType = "blender_render";
-      dockerImage = "blenderkit/headless-blender:blender-4.1";
+      dockerImage = "linuxserver/blender:latest";
       timeLimitSecs = 7200;
     } else if (jobType === "image-gen") {
       mappedType = "stable_diffusion";
@@ -354,7 +354,7 @@ export default function SubmitJobPage(): React.ReactElement {
       dockerImage = "python:3.11-slim";
       timeLimitSecs = 300;
     } else if (jobType === "python_gpu") {
-      dockerImage = "pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime";
+      dockerImage = "python:3.11-slim";
       timeLimitSecs = 3600;
     }
 

@@ -65,11 +65,17 @@ async function detectGpu(): Promise<GpuResult | null> {
     try {
       const { stdout } = await execAsync("system_profiler SPDisplaysDataType");
       const modelMatch = stdout.match(/Chipset Model: (.+)/);
-      const vramMatch = stdout.match(/VRAM[^:]*:\s*(\d+)\s*(MB|GB)/i);
+      const vramMatch = stdout.match(
+        /(?:VRAM|Memory|Video RAM)[^:]*:\s*([\d.]+)\s*(MB|GB)/i,
+      );
       if (modelMatch) {
-        const vramVal = vramMatch ? parseInt(vramMatch[1]) : 0;
+        const vramVal = vramMatch ? parseFloat(vramMatch[1]) : 0;
         const vramUnit = vramMatch ? vramMatch[2].toUpperCase() : "GB";
-        const vramGB = vramUnit === "MB" ? Math.round(vramVal / 1024) : vramVal;
+        const vramGB = vramMatch
+          ? vramUnit === "MB"
+            ? Math.round(vramVal / 1024)
+            : Math.round(vramVal)
+          : Math.round(os.totalmem() / (1024 * 1024 * 1024));
         return {
           gpuModel: modelMatch[1].trim(),
           vramGB,
@@ -354,7 +360,12 @@ export async function getGpuMetrics() {
       .trim()
       .split(",")
       .map((s) => parseFloat(s.trim()));
-    return { utilization: util, vramUsedMb: vram, temperatureC: temp, powerDrawW: power };
+    return {
+      utilization: util,
+      vramUsedMb: vram,
+      temperatureC: temp,
+      powerDrawW: power,
+    };
   } catch {}
 
   // AMD via rocm-smi

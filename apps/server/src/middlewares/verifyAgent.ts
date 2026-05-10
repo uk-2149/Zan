@@ -58,7 +58,7 @@ export async function verifyAgent(req: Request, res: Response, next: NextFunctio
   }
 
   // 3. Look up provider and their registered public key
-  const provider = await prisma.provider.findUnique({
+  const provider = await prisma.provider.findFirst({
     where: { id: providerId },
     select: { id: true, agentPublicKey: true, status: true }
   })

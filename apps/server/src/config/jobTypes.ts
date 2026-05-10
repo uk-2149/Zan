@@ -1,6 +1,6 @@
 export const JOB_TYPES = {
   blender_render: {
-    dockerImage:    'blenderkit/headless-blender:blender-4.1',
+    dockerImage: 'linuxserver/blender:latest',
     minVramGB:      4,
     defaultTimeLim: 7200,
     requiredParams: [],  // frameStart/frameEnd are optional — Blender uses .blend file settings by default
@@ -25,11 +25,13 @@ export const JOB_TYPES = {
     description:    'Run any Python script in a clean environment',
   },
   python_gpu: {
-    dockerImage:    'pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime',
+    // Use a smaller Python base image for now, avoiding the large CUDA runtime image.
+    // The job runner installs PyTorch / diffusers at runtime, so this is enough for CPU/MPS execution.
+    dockerImage:    'python:3.11-slim',
     minVramGB:      0,
     defaultTimeLim: 3600,
     requiredParams: [],
-    description:    'Python with PyTorch + CUDA for GPU workloads',
+    description:    'Python with PyTorch-compatible runtime for CPU/MPS workloads',
   },
 } as const;
 
