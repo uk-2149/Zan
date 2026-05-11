@@ -22,6 +22,8 @@ declare global {
       onWsStatus: (cb: (status: string) => void) => () => void;
       updateWallet: (walletAddress: string) => Promise<any>;
       getWalletBalance: () => Promise<any>;
+      openExternal: (url: string) => Promise<any>;
+      getVerifyUrl: () => Promise<string>;
     };
   }
 }
