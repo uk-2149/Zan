@@ -9,10 +9,12 @@ import { Activity } from "lucide-react";
 function Counter({
   from,
   to,
+  prefix,
   suffix,
 }: {
   from: number;
   to: number;
+  prefix: string;
   suffix: string;
 }): ReactElement {
   const nodeRef = useRef<HTMLSpanElement>(null);
@@ -25,16 +27,17 @@ function Counter({
         ease: [0.16, 1, 0.3, 1],
         onUpdate(value) {
           if (nodeRef.current) {
-            nodeRef.current.textContent = `${Math.floor(value)}${suffix}`;
+            nodeRef.current.textContent = `${prefix}${Math.floor(value)}${suffix}`;
           }
         },
       });
       return () => controls.stop();
     }
-  }, [from, to, suffix, inView]);
+  }, [from, to, prefix, suffix, inView]);
 
   return (
     <span ref={nodeRef} className="tabular-nums">
+      {prefix}
       {from}
       {suffix}
     </span>
@@ -81,8 +84,10 @@ export function WhyZanSection(): ReactElement {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {stats.map((stat, idx) => {
-            const numericValue = parseInt(stat.value.replace(/[^0-9]/g, ""));
-            const suffix = stat.value.replace(/[0-9]/g, "");
+            const match = stat.value.match(/^(\D*)(\d+)(.*)$/);
+            const prefix = match?.[1] ?? "";
+            const numericValue = match ? Number(match[2]) : NaN;
+            const suffix = match?.[3] ?? "";
 
             return (
               <motion.div
@@ -93,14 +98,19 @@ export function WhyZanSection(): ReactElement {
                 transition={{ duration: 0.7, delay: idx * 0.1 }}
                 className="relative p-8 rounded-3xl border border-white/10 bg-brand-gray/30 backdrop-blur-sm overflow-hidden group hover:bg-brand-gray/60 transition-colors duration-500"
               >
-                <div className="absolute -inset-px bg-gradient-to-b from-brand-cyan/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <div className="absolute -inset-px bg-linear-to-b from-brand-cyan/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
                 <div className="relative z-10">
                   <div className="text-5xl md:text-6xl font-bold text-brand-cyan mb-4 font-mono tracking-tighter">
                     {Number.isNaN(numericValue) ? (
                       stat.value
                     ) : (
-                      <Counter from={0} to={numericValue} suffix={suffix} />
+                      <Counter
+                        from={0}
+                        to={numericValue}
+                        prefix={prefix}
+                        suffix={suffix}
+                      />
                     )}
                   </div>
                   <h3 className="text-xl font-bold text-white mb-2">
