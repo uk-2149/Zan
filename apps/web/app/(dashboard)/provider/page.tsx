@@ -13,9 +13,9 @@ import {
   Layers,
   Loader2,
   Server,
-  Download,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { DownloadAgentButton } from "@/components/shared/download-agent-button";
 
 export default function ProviderDashboard(): React.JSX.Element {
   const { data: session } = useSession({ required: true });
@@ -82,16 +82,12 @@ export default function ProviderDashboard(): React.JSX.Element {
             Your account is ready, but we haven't detected any attached GPU hardware. To start accepting workloads and earning SOL, you need to launch the GNet Desktop Agent.
           </p>
 
-          <a
-            href="https://github.com"
-            target="_blank"
-            rel="noreferrer"
-            className="group relative flex items-center justify-center gap-3 w-full py-4 rounded-xl bg-brand-cyan text-brand-dark font-bold hover:bg-white transition-all shadow-[0_0_20px_rgba(0,255,209,0.3)]"
+          <DownloadAgentButton
+            className="group relative flex items-center justify-center gap-3 w-full py-4 rounded-xl bg-brand-cyan text-brand-dark font-bold hover:bg-white transition-all shadow-[0_0_20px_rgba(0,255,209,0.3)] cursor-pointer"
+            showPlatform
           >
-            <Download className="w-5 h-5" />
             Download Desktop Agent
-            <div className="absolute inset-0 rounded-xl ring-2 ring-white/20 scale-105 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all" />
-          </a>
+          </DownloadAgentButton>
           
           <p className="mt-6 text-xs text-white/30 font-mono">
             Already have the agent? Just launch it and sign in.

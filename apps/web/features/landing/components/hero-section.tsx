@@ -1,7 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import { LANDING_CONTENT } from "@/config/landing-content";
 import { ArrowRight, Cpu } from "lucide-react";
 import { EarthGlobe } from "./earth-globe";
+import { DownloadAgentButton } from "@/components/shared/download-agent-button";
 import type { ReactElement } from "react";
 
 export function HeroSection(): ReactElement {
@@ -47,12 +50,13 @@ export function HeroSection(): ReactElement {
             {ctaPrimary}
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" />
           </Link>
-          <Link
-            href="/provider"
-            className="w-full sm:w-auto px-8 py-4 rounded-full bg-brand-dark/50 backdrop-blur-md border border-white/10 text-white font-medium hover:bg-white/5 hover:border-brand-cyan/30 hover:scale-105 active:scale-95 transition-all duration-500 flex items-center justify-center"
+          <DownloadAgentButton
+            className="w-full sm:w-auto px-8 py-4 rounded-full bg-brand-dark/50 backdrop-blur-md border border-white/10 text-white font-medium hover:bg-white/5 hover:border-brand-cyan/30 hover:scale-105 active:scale-95 transition-all duration-500 flex items-center justify-center gap-2 cursor-pointer"
+            showIcon={false}
+            showPlatform
           >
             {ctaSecondary}
-          </Link>
+          </DownloadAgentButton>
         </div>
         <div className="mt-16 w-full flex justify-center -mb-32 md:-mb-64 pointer-events-none">
           <EarthGlobe />
@@ -61,3 +65,4 @@ export function HeroSection(): ReactElement {
     </section>
   );
 }
+

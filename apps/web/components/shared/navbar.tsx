@@ -6,8 +6,9 @@ import type { ReactElement } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession, signOut } from "next-auth/react";
 import { Logo } from "./logo";
-import { LogOut, User, LayoutDashboard, ChevronDown } from "lucide-react";
+import { LogOut, User, LayoutDashboard, ChevronDown, Download } from "lucide-react";
 import { WalletConnectButton } from "./wallet-connect-button";
+import { DownloadAgentButton } from "./download-agent-button";
 
 const NAV_LINKS = [
   { name: "Problem", href: "#problem" },
@@ -55,12 +56,12 @@ export function Navbar(): ReactElement {
         </nav>
 
         <div className="flex items-center gap-6">
-          <Link
-            href="/provider"
-            className="hidden md:block text-sm font-medium text-white/60 hover:text-white transition-colors"
+          <DownloadAgentButton
+            className="hidden md:flex items-center gap-1.5 text-sm font-medium text-white/60 hover:text-white transition-colors cursor-pointer"
+            showIcon={false}
           >
             Earn with GPU
-          </Link>
+          </DownloadAgentButton>
           {isLoggedIn && <WalletConnectButton showBalance />}
 
           {!isLoading && (
@@ -108,13 +109,13 @@ export function Navbar(): ReactElement {
                   </AnimatePresence>
                 </div>
               ) : (
-                <Link
-                  href="/login"
-                  className="group relative px-6 py-2.5 rounded-full bg-white text-black text-sm font-bold hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_30px_rgba(0,255,209,0.4)] overflow-hidden"
+                <DownloadAgentButton
+                  className="group relative px-6 py-2.5 rounded-full bg-white text-black text-sm font-bold hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_30px_rgba(0,255,209,0.4)] overflow-hidden cursor-pointer flex items-center gap-2"
+                  showIcon={false}
                 >
-                  <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-brand-cyan/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
                   <span className="relative z-10">Launch App</span>
-                </Link>
+                  <Download className="w-3.5 h-3.5 relative z-10" />
+                </DownloadAgentButton>
               )}
             </>
           )}
