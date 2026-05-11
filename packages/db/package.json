@@ -12,6 +12,7 @@
   },
   "scripts": {
     "build": "prisma generate && tsc",
+    "db:generate": "prisma generate",
     "dev": "tsc --watch",
     "seed:reset": "node prisma/reset.mjs"
   },
