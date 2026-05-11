@@ -4,7 +4,7 @@
     "target": "es2022",
     "lib": ["es2022"],
     "types": ["node"],
-    "baseUrl": ".",
+    // "baseUrl": ".",
     // "paths": {
     //   "@repo/types": ["../../packages/types/dist/index.d.ts"],
     //   "@repo/crypto": ["../../packages/crypto/dist/index.d.ts"]
@@ -12,7 +12,7 @@
 
     "rootDir": "./src",
     "outDir": "./dist",
-    "moduleResolution": "NodeNext",  // ← was "bundler", must match @repo/db
+    "moduleResolution": "NodeNext", // ← was "bundler", must match @repo/db
 
     "sourceMap": true,
     "declaration": true,
