@@ -1,4 +1,4 @@
-# provider-agent
+# Zan Provider Agent
 
 An Electron application with React and TypeScript
 

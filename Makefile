@@ -59,7 +59,7 @@ dev-server:
 
 dev-agent:
 	@printf "$(COLOR_GREEN)Starting agent app...$(COLOR_RESET)\n"
-	$(PNPM) --filter provider-agent dev
+	$(PNPM) --filter @repo/provider-agent dev
 
 dev-db:
 	@printf "$(COLOR_GREEN)Starting db watch build...$(COLOR_RESET)\n"

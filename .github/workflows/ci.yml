@@ -42,7 +42,7 @@ jobs:
         run: echo 'DATABASE_URL=postgresql://ci:ci@localhost:5432/ci' > packages/db/.env
 
       - name: Build packages
-        run: pnpm turbo run build --filter='!provider-agent'
+        run: pnpm turbo run build --filter='!@repo/provider-agent'
 
       - name: Lint
-        run: pnpm turbo run lint --filter='!provider-agent'
+        run: pnpm turbo run lint --filter='!@repo/provider-agent'
