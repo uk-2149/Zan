@@ -1,6 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import { app, shell, BrowserWindow, ipcMain } from "electron";
+import { join } from "path";
+import { mkdirSync } from "fs";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import axios from "axios";
 import { store } from "./store";
@@ -25,7 +27,7 @@ function loadDotEnv(): void {
       const key = trimmed.slice(0, equalsIndex).trim();
       let value = trimmed.slice(equalsIndex + 1).trim();
       if (
-        (value.startsWith("\"") && value.endsWith("\"")) ||
+        (value.startsWith('"') && value.endsWith('"')) ||
         (value.startsWith("'") && value.endsWith("'"))
       ) {
         value = value.slice(1, -1);
@@ -47,6 +49,18 @@ import { connectWebSocket, disconnectWebSocket } from "./ws-client";
 import { setupTray } from "./tray";
 import { generateAgentKeypair } from "@repo/crypto";
 import { agentRequest } from "./api-client";
+
+if (process.platform === "linux") {
+  app.commandLine.appendSwitch("no-sandbox");
+  app.commandLine.appendSwitch("disable-dev-shm-usage");
+}
+
+if (process.platform === "linux") {
+  const tempDir = join(app.getPath("home"), ".zan-agent-tmp");
+  mkdirSync(tempDir, { recursive: true });
+  app.setPath("temp", tempDir);
+  process.env.TMPDIR = tempDir;
+}
 
 let isQuitting = false;
 app.on("before-quit", () => {
@@ -293,14 +307,23 @@ ipcMain.handle("machine:detect", async (event) => {
 
 ipcMain.handle(
   "machine:register",
-  async (_, { hardwareInfo, pricePerHour, stakeSignature, stakedAmount }) => {
+  async (
+    _,
+    { hardwareInfo, pricePerHour, stakeSignature, stakedAmount, walletAddress },
+  ) => {
     try {
       const token = store.get("token");
       const url = `${store.get("apiUrl")}/providers/register`;
       console.log("[MACHINE] Hitting URL:", url);
       const { data } = await axios.post(
         url,
-        { hardwareInfo, pricePerHour, stakeSignature, stakedAmount },
+        {
+          hardwareInfo,
+          pricePerHour,
+          stakeSignature,
+          stakedAmount,
+          walletAddress,
+        },
         { headers: { Authorization: `Bearer ${token}` } },
       );
       console.log("[MACHINE] Response:", data);
@@ -384,7 +407,9 @@ ipcMain.handle("wallet:get-balance", async () => {
 
 ipcMain.handle("store:get", (_, key: string) => store.get(key as any));
 
-ipcMain.handle("app:open-external", (_, url: string) => shell.openExternal(url));
+ipcMain.handle("app:open-external", (_, url: string) =>
+  shell.openExternal(url),
+);
 
 ipcMain.handle("app:get-verify-url", () => {
   const token = store.get("token");

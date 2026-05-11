@@ -795,3 +795,62 @@ input::placeholder { color: var(--text3); }
 .d-warn-txt { font-size: 0.72rem; color: var(--amber); display: block; }
 .warn-val   { color: var(--amber) !important; }
 .d-item.warn { border-color: rgba(245,158,11,0.2); }
+
+/* Stake web button */
+.btn-stake-web {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 18px;
+  margin-top: 4px;
+  background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.08));
+  border: 1px solid rgba(245,158,11,0.35);
+  border-radius: var(--r);
+  color: var(--amber);
+  font-family: var(--sans);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.01em;
+}
+.btn-stake-web:hover {
+  background: linear-gradient(135deg, rgba(245,158,11,0.25), rgba(245,158,11,0.12));
+  border-color: rgba(245,158,11,0.5);
+}
+.btn-stake-web:active {
+  transform: scale(0.98);
+}
+
+/* Stake steps */
+.stake-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.stake-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.74rem;
+  color: var(--text3);
+}
+.stake-step .step-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(245,158,11,0.12);
+  border: 1px solid rgba(245,158,11,0.25);
+  color: var(--amber);
+  font-size: 0.62rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}

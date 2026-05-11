@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld("api", {
     pricePerHour: number;
     stakeSignature: string;
     stakedAmount: number;
+    walletAddress: string;
   }) => ipcRenderer.invoke("machine:register", payload),
 
   // ── Provider ──────────────────────────────────────

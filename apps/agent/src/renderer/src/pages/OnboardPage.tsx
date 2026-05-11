@@ -234,10 +234,39 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
               <div className="sb-top">
                 <div>
                   <div className="sb-title">Required stake</div>
-                  <div className="sb-sub">Stake via web dashboard and paste tx below</div>
+                  <div className="sb-sub">Stake 2 SOL to register on the network</div>
                 </div>
                 <div className="sb-amount">2 SOL</div>
               </div>
+
+              <button
+                className="btn-stake-web"
+                onClick={() => window.api.openExternal("http://localhost:3000/stake")}
+                type="button"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+                Stake 2 SOL via Web Dashboard
+              </button>
+
+              <div className="stake-steps">
+                <div className="stake-step">
+                  <span className="step-num">1</span>
+                  <span>Click above to open the staking page in your browser</span>
+                </div>
+                <div className="stake-step">
+                  <span className="step-num">2</span>
+                  <span>Connect Phantom wallet &amp; approve the transaction</span>
+                </div>
+                <div className="stake-step">
+                  <span className="step-num">3</span>
+                  <span>Copy the transaction signature &amp; paste below</span>
+                </div>
+              </div>
+
               <div className="field mt-4">
                 <label>Wallet Address</label>
                 <input
@@ -252,7 +281,7 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
                 <label>Stake Transaction Signature</label>
                 <input
                   type="text"
-                  placeholder="Paste transaction signature"
+                  placeholder="Paste transaction signature from step 2"
                   className="price-inp w-full mt-1 font-mono text-xs"
                   value={stakeSignature}
                   onChange={(e) => setStakeSignature(e.target.value)}
