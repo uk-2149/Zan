@@ -32,13 +32,10 @@ linux:
   executableName: provider-agent
   target:
     - AppImage
-    - snap
     - deb
   maintainer: electronjs.org
   category: Utility
 appImage:
-  artifactName: zan-provider-agent-${version}.${ext}
-snap:
   artifactName: zan-provider-agent-${version}.${ext}
 deb:
   artifactName: zan-provider-agent-${version}.${ext}
