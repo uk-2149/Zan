@@ -43,7 +43,7 @@ function WalletVerificationContent() {
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
       // 1. Get challenge
-      const chalRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/wallet/challenge`, { headers });
+      const chalRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/wallet/challenge`, { headers });
       if (!chalRes.ok) {
         const d = await chalRes.json().catch(()=>({}));
         throw new Error(d.error || "Failed to get challenge");
@@ -56,7 +56,7 @@ function WalletVerificationContent() {
       const signatureBase58 = bs58.encode(signature);
 
       // 3. Verify
-      const verRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/wallet`, {
+      const verRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/wallet`, {
         method: "PATCH",
         headers,
         body: JSON.stringify({
