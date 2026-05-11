@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { Readable } from "stream";
 import { prisma } from "@repo/db";
 import * as solanaService from "../services/solana.service.js";
 import { enqueueJob } from "../queues/jobQueue.js";
@@ -19,6 +20,44 @@ function extractAzureBlobName(uri: string, container: string): string | null {
   } catch {
     return null;
   }
+}
+
+function sanitizeDownloadName(name: string): string {
+  return name.replace(/[\r\n"]/g, "_");
+}
+
+async function streamAzureBlob(
+  blobName: string,
+  res: Response,
+  downloadName?: string,
+): Promise<void> {
+  const presigned = await generateReadSASUrl(CONTAINERS.outputs, blobName);
+  const response = await fetch(presigned);
+
+  if (!response.ok) {
+    console.error("[streamAzureBlob] Storage response", response.status);
+    res.status(502).json({ error: "Failed to fetch file from storage" });
+    return;
+  }
+
+  res.setHeader(
+    "Content-Type",
+    response.headers.get("content-type") ?? "application/octet-stream",
+  );
+  res.setHeader("Cache-Control", "no-store");
+  if (downloadName) {
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${sanitizeDownloadName(downloadName)}"`,
+    );
+  }
+
+  if (!response.body) {
+    res.status(204).send("");
+    return;
+  }
+
+  Readable.fromWeb(response.body as any).pipe(res);
 }
 
 async function maybePresignAzureUri(
@@ -307,6 +346,167 @@ export const getJobById = async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[getJobById]", err);
     res.status(500).json({ error: "Failed to fetch job" });
+  }
+};
+
+export const getJobLogs = async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const jobId = String(req.params.id);
+
+  try {
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: {
+        clientId: true,
+        providerId: true,
+        executionMetadata: true,
+      },
+    });
+
+    if (!job) return res.status(404).json({ error: "Job not found" });
+
+    let isProvider = false;
+    if (job.providerId) {
+      const provider = await prisma.provider.findFirst({
+        where: { id: job.providerId, userId },
+        select: { id: true },
+      });
+      if (provider) isProvider = true;
+    }
+
+    if (job.clientId !== userId && !isProvider) {
+      return res.status(403).json({ error: "Not your job" });
+    }
+
+    const meta = job.executionMetadata;
+    const logsUri =
+      meta && typeof meta === "object" && "logsUri" in meta
+        ? (meta as { logsUri?: unknown }).logsUri
+        : null;
+
+    if (!logsUri || typeof logsUri !== "string") {
+      return res.status(404).json({ error: "Logs not available" });
+    }
+
+    const blobName = extractAzureBlobName(logsUri, CONTAINERS.outputs);
+    if (!blobName) {
+      return res.status(400).json({ error: "Unsupported logs URI" });
+    }
+
+    await streamAzureBlob(blobName, res);
+  } catch (err) {
+    console.error("[getJobLogs]", err);
+    res.status(500).json({ error: "Failed to fetch logs" });
+  }
+};
+
+export const getJobOutput = async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const jobId = String(req.params.id);
+
+  try {
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: {
+        clientId: true,
+        providerId: true,
+        outputUri: true,
+      },
+    });
+
+    if (!job) return res.status(404).json({ error: "Job not found" });
+
+    let isProvider = false;
+    if (job.providerId) {
+      const provider = await prisma.provider.findFirst({
+        where: { id: job.providerId, userId },
+        select: { id: true },
+      });
+      if (provider) isProvider = true;
+    }
+
+    if (job.clientId !== userId && !isProvider) {
+      return res.status(403).json({ error: "Not your job" });
+    }
+
+    if (!job.outputUri) {
+      return res.status(404).json({ error: "Output not available" });
+    }
+
+    const blobName = extractAzureBlobName(job.outputUri, CONTAINERS.outputs);
+    if (!blobName) {
+      return res.status(400).json({ error: "Unsupported output URI" });
+    }
+
+    const downloadName = blobName.split("/").pop() || "output";
+    await streamAzureBlob(blobName, res, downloadName);
+  } catch (err) {
+    console.error("[getJobOutput]", err);
+    res.status(500).json({ error: "Failed to fetch output" });
+  }
+};
+
+export const getJobOutputFile = async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const jobId = String(req.params.id);
+  const fileName = typeof req.query.name === "string" ? req.query.name : null;
+
+  if (!fileName) {
+    return res.status(400).json({ error: "Output name is required" });
+  }
+
+  try {
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: {
+        clientId: true,
+        providerId: true,
+        executionMetadata: true,
+      },
+    });
+
+    if (!job) return res.status(404).json({ error: "Job not found" });
+
+    let isProvider = false;
+    if (job.providerId) {
+      const provider = await prisma.provider.findFirst({
+        where: { id: job.providerId, userId },
+        select: { id: true },
+      });
+      if (provider) isProvider = true;
+    }
+
+    if (job.clientId !== userId && !isProvider) {
+      return res.status(403).json({ error: "Not your job" });
+    }
+
+    const meta = job.executionMetadata;
+    const outputFiles =
+      meta && typeof meta === "object" && "outputFiles" in meta
+        ? (meta as { outputFiles?: unknown }).outputFiles
+        : null;
+
+    if (!Array.isArray(outputFiles)) {
+      return res.status(404).json({ error: "Output files not available" });
+    }
+
+    const match = outputFiles.find(
+      (file: any) => file && file.filename === fileName,
+    );
+
+    if (!match || typeof match.uri !== "string") {
+      return res.status(404).json({ error: "Output file not found" });
+    }
+
+    const blobName = extractAzureBlobName(match.uri, CONTAINERS.outputs);
+    if (!blobName) {
+      return res.status(400).json({ error: "Unsupported output URI" });
+    }
+
+    await streamAzureBlob(blobName, res, fileName);
+  } catch (err) {
+    console.error("[getJobOutputFile]", err);
+    res.status(500).json({ error: "Failed to fetch output file" });
   }
 };
 

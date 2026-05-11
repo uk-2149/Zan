@@ -5,6 +5,9 @@ import {
   getMyJobs,
   getMyStats,
   getJobById,
+  getJobLogs,
+  getJobOutput,
+  getJobOutputFile,
   jobComplete,
   updateJobStatus,
   cancelJob,
@@ -20,6 +23,9 @@ jobRouter.post("/submit/prepare", verifyJWT, prepareJobSubmit);
 jobRouter.post("/submit", verifyJWT, submitJob);
 jobRouter.get("/my-jobs", verifyJWT, getMyJobs);
 jobRouter.get("/my-stats", verifyJWT, getMyStats);
+jobRouter.get("/:id/logs", verifyJWT, getJobLogs);
+jobRouter.get("/:id/output", verifyJWT, getJobOutput);
+jobRouter.get("/:id/outputs", verifyJWT, getJobOutputFile);
 jobRouter.get("/:id", verifyJWT, getJobById);
 jobRouter.patch("/:id/cancel", verifyJWT, cancelJob);
 

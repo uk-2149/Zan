@@ -187,15 +187,37 @@ function StatCard({
   );
 }
 
-function LogViewer({ logsUri }: { logsUri: string }): React.ReactElement {
+function getFilenameFromUri(uri: string, fallback: string): string {
+  try {
+    const parsed = new URL(uri);
+    const name = parsed.pathname.split("/").pop();
+    return name && name.trim().length ? name : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+async function downloadBlob(path: string, filename: string): Promise<void> {
+  const blob = await api.getBlob(path);
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+function LogViewer({ jobId }: { jobId: string }): React.ReactElement {
   const [logs, setLogs] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(logsUri)
-      .then((r) => r.text())
+    api
+      .getText(`/api/jobs/${jobId}/logs`)
       .then((text) => {
         if (cancelled) return;
         setLogs(text);
@@ -210,7 +232,7 @@ function LogViewer({ logsUri }: { logsUri: string }): React.ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [logsUri]);
+  }, [jobId]);
 
   if (loading)
     return <div className="text-sm text-white/40">Loading logs...</div>;
@@ -258,6 +280,31 @@ export default function JobDetailPage(): React.ReactElement {
     const timer = setInterval(fetchJob, 5_000);
     return () => clearInterval(timer);
   }, [job, fetchJob]);
+
+  const handleDownloadOutput = useCallback(async () => {
+    if (!job?.outputUri) return;
+    const filename = getFilenameFromUri(job.outputUri, "output");
+    try {
+      await downloadBlob(`/api/jobs/${job.id}/output`, filename);
+    } catch (err) {
+      console.error("[downloadOutput]", err);
+    }
+  }, [job]);
+
+  const handleDownloadOutputFile = useCallback(
+    async (file: { filename: string }) => {
+      if (!job?.id) return;
+      try {
+        await downloadBlob(
+          `/api/jobs/${job.id}/outputs?name=${encodeURIComponent(file.filename)}`,
+          file.filename,
+        );
+      } catch (err) {
+        console.error("[downloadOutputFile]", err);
+      }
+    },
+    [job],
+  );
 
   const handleCancel = async (): Promise<void> => {
     if (!job || !CANCELLABLE.has(job.status)) return;
@@ -395,15 +442,14 @@ export default function JobDetailPage(): React.ReactElement {
                 <p className="text-xs text-white/30 uppercase tracking-widest mb-2">
                   Output
                 </p>
-                <a
-                  href={job.outputUri}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={handleDownloadOutput}
                   className="font-mono text-sm text-brand-cyan break-all hover:underline inline-flex items-center gap-1.5"
                 >
-                  {job.outputUri}
+                  Download output
                   <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                </a>
+                </button>
               </div>
             )}
           </div>
@@ -418,7 +464,7 @@ export default function JobDetailPage(): React.ReactElement {
                 <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">
                   Execution Logs
                 </h2>
-                <LogViewer logsUri={job.executionMetadata.logsUri} />
+                <LogViewer jobId={job.id} />
               </div>
             )}
 
@@ -437,14 +483,14 @@ export default function JobDetailPage(): React.ReactElement {
                     <span className="text-sm text-white/70 truncate">
                       {file.filename} ({(file.size / 1024).toFixed(1)} KB)
                     </span>
-                    <a
-                      href={file.uri}
-                      download={file.filename}
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadOutputFile(file)}
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 text-white/70 hover:text-white hover:border-white/20 transition-all text-sm"
                     >
                       Download
                       <ExternalLink className="w-4 h-4" />
-                    </a>
+                    </button>
                   </div>
                 ))}
               </div>
