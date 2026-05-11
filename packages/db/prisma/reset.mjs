@@ -10,6 +10,7 @@ if (!connectionString) {
 
 const pool = new pg.Pool({ connectionString });
 
+
 async function main() {
   await pool.query(`
     TRUNCATE TABLE
