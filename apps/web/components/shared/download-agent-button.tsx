@@ -33,7 +33,7 @@ export function DownloadAgentButton({
     setPlatformLabel(getPlatformLabel(p));
   }, []);
 
-  const xattrCommand = `xattr -cr "/Applications/Zan Provider Agent.app"`;
+  const xattrCommand = `xattr -cr "/path/to/Zan Provider Agent.app"`;
 
   const copyCommand = useCallback(async () => {
     await navigator.clipboard.writeText(xattrCommand);
@@ -45,9 +45,9 @@ export function DownloadAgentButton({
     e.preventDefault();
     setIsDownloading(true);
     try {
-      await downloadAgent();
-      // Show macOS instruction modal after download starts
-      if (platform === "macos") {
+      const started = await downloadAgent();
+      // Show macOS instruction modal only when a direct macOS binary is being downloaded.
+      if (platform === "macos" && started) {
         setTimeout(() => setShowMacModal(true), 1500);
       }
     } finally {
