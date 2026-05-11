@@ -50,7 +50,7 @@ jobs:
         run: pnpx prisma generate
 
       - name: Build workspace dependencies
-        run: pnpm turbo run build --filter='provider-agent^...'
+        run: pnpm turbo run build --filter='@repo/provider-agent^...'
 
       - name: Build Electron app
         working-directory: apps/agent
@@ -62,7 +62,7 @@ jobs:
         if: matrix.platform == 'linux'
         uses: actions/upload-artifact@v4
         with:
-          name: provider-agent-linux
+          name: zan-provider-agent-linux
           path: |
             apps/agent/dist/*.AppImage
             apps/agent/dist/*.deb
@@ -73,7 +73,7 @@ jobs:
         if: matrix.platform == 'win'
         uses: actions/upload-artifact@v4
         with:
-          name: provider-agent-windows
+          name: zan-provider-agent-windows
           path: apps/agent/dist/*.exe
           if-no-files-found: warn
 
@@ -81,7 +81,7 @@ jobs:
         if: matrix.platform == 'mac'
         uses: actions/upload-artifact@v4
         with:
-          name: provider-agent-macos
+          name: zan-provider-agent-macos
           path: apps/agent/dist/*.dmg
           if-no-files-found: warn
 

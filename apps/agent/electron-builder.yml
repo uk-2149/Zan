@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: provider-agent
+appId: com.zan.provider-agent
+productName: Zan Provider Agent
 directories:
   buildResources: build
 files:
