@@ -57,7 +57,7 @@ async function processJob(bullJob: BullJob<JobMatchPayload>): Promise<void> {
         ? {
             OR: [
               { vramGB: { gte: job.requiredVramGB } },
-              { vramGB: 0, gpuModel: { contains: "Apple" } },
+              // { vramGB: 0, gpuModel: { contains: "Apple" } },
             ],
           }
         : { vramGB: { gte: job.requiredVramGB } }
@@ -86,7 +86,14 @@ async function processJob(bullJob: BullJob<JobMatchPayload>): Promise<void> {
   const provider: any = await prisma.provider.findFirst({
     where: providerWhere,
     orderBy: [{ tier: "desc" }, { lastHeartbeat: "desc" }],
-    select: { id: true, gpuModel: true, vramGB: true, location: true, tier: true, user: { select: { walletAddress: true } } },
+    select: {
+      id: true,
+      gpuModel: true,
+      vramGB: true,
+      location: true,
+      tier: true,
+      user: { select: { walletAddress: true } },
+    },
   });
 
   if (!provider) {
@@ -115,7 +122,11 @@ async function processJob(bullJob: BullJob<JobMatchPayload>): Promise<void> {
       data: {
         jobId,
         type: "ASSIGNED",
-        metadata: { providerId: provider.id, gpuModel: provider.gpuModel, tier: provider.tier },
+        metadata: {
+          providerId: provider.id,
+          gpuModel: provider.gpuModel,
+          tier: provider.tier,
+        },
       },
     }),
   ]);
@@ -124,9 +135,15 @@ async function processJob(bullJob: BullJob<JobMatchPayload>): Promise<void> {
     try {
       // Import dynamic so we don't circular depend if not needed, or just import at top
       const solanaService = await import("../services/solana.service.js");
-      await solanaService.assignProviderToEscrow(Number(job.jobNumericId), provider.user.walletAddress);
+      await solanaService.assignProviderToEscrow(
+        Number(job.jobNumericId),
+        provider.user.walletAddress,
+      );
     } catch (err) {
-      console.error(`[Matchmaker] Failed to assign provider on-chain for job ${jobId}`, err);
+      console.error(
+        `[Matchmaker] Failed to assign provider on-chain for job ${jobId}`,
+        err,
+      );
       // We might want to handle this, but for now just log it
     }
   }
@@ -139,13 +156,20 @@ async function processJob(bullJob: BullJob<JobMatchPayload>): Promise<void> {
       const prefix = `/${CONTAINERS.inputs}/`;
       if (parsed.pathname.startsWith(prefix)) {
         const blobName = parsed.pathname.slice(prefix.length);
-        downloadableInputUri = await generateReadSASUrl(CONTAINERS.inputs, blobName, 21600); // 6 hours
+        downloadableInputUri = await generateReadSASUrl(
+          CONTAINERS.inputs,
+          blobName,
+          21600,
+        ); // 6 hours
       }
     } catch (e) {
       console.warn(`[Matchmaker] Error parsing inputUri URL:`, e);
     }
   } catch (err) {
-    console.warn(`[Matchmaker] Failed to presign inputUri, using original`, err);
+    console.warn(
+      `[Matchmaker] Failed to presign inputUri, using original`,
+      err,
+    );
   }
 
   const delivered = sendJobToProvider(provider.id, {
@@ -187,7 +211,10 @@ export function startMatchmakerWorker(): Worker<JobMatchPayload> {
         `[Matchmaker] No provider for job ${job?.data.jobId} — attempt ${job?.attemptsMade}/15, retrying…`,
       );
     } else {
-      console.error(`[Matchmaker] ✗ job ${job?.data.jobId} failed:`, err.message);
+      console.error(
+        `[Matchmaker] ✗ job ${job?.data.jobId} failed:`,
+        err.message,
+      );
     }
   });
 

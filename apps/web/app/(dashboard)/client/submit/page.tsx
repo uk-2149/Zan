@@ -6,9 +6,25 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Brain, Monitor, Zap, Upload, Coins, Cpu, Loader2,
-  AlertCircle, Lock, ShieldCheck, CheckCircle2, FileText,
-  Database, Film, Activity, Image as ImageIcon, Clock, Sparkles,
+  ArrowLeft,
+  Brain,
+  Monitor,
+  Zap,
+  Upload,
+  Coins,
+  Cpu,
+  Loader2,
+  AlertCircle,
+  Lock,
+  ShieldCheck,
+  CheckCircle2,
+  FileText,
+  Database,
+  Film,
+  Activity,
+  Image as ImageIcon,
+  Clock,
+  Sparkles,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useWalletConnection } from "@/hooks/use-wallet-connection";
@@ -19,134 +35,138 @@ import { WalletConnectButton } from "@/components/shared/wallet-connect-button";
 //Job type definitions
 const JOB_TYPE_DEFS = [
   {
-    value:       "inference",
-    label:       "LLM Inference",
-    icon:        Brain,
-    desc:        "Batch inference, model serving, and agent pipelines at scale.",
+    value: "inference",
+    label: "LLM Inference",
+    icon: Brain,
+    desc: "Batch inference, model serving, and agent pipelines at scale.",
     vramDefault: 16,
     ratePerHour: 0.004,
-    frameworks:  ["LLaMA-3 70B", "Mistral 7B", "Qwen 2.5", "GPT-2", "Custom"],
-    inputHint:   "s3://bucket/prompts.jsonl",
-    category:    "AI & Machine Learning",
+    frameworks: ["LLaMA-3 70B", "Mistral 7B", "Qwen 2.5", "GPT-2", "Custom"],
+    inputHint: "s3://bucket/prompts.jsonl",
+    category: "AI & Machine Learning",
   },
   {
-    value:       "training",
-    label:       "Model Training",
-    icon:        Zap,
-    desc:        "Full training runs on custom datasets — highest-value, long-running jobs.",
+    value: "training",
+    label: "Model Training",
+    icon: Zap,
+    desc: "Full training runs on custom datasets — highest-value, long-running jobs.",
     vramDefault: 40,
-    ratePerHour: 0.020,
-    frameworks:  ["LLaMA-3", "Stable Diffusion XL", "BERT", "ResNet", "Custom"],
-    inputHint:   "s3://bucket/training-data.tar.gz",
-    category:    "AI & Machine Learning",
+    ratePerHour: 0.02,
+    frameworks: ["LLaMA-3", "Stable Diffusion XL", "BERT", "ResNet", "Custom"],
+    inputHint: "s3://bucket/training-data.tar.gz",
+    category: "AI & Machine Learning",
   },
   {
-    value:       "fine-tune",
-    label:       "Fine-tuning",
-    icon:        Sparkles,
-    desc:        "LoRA, QLoRA, and instruction-tuning on foundation models.",
+    value: "fine-tune",
+    label: "Fine-tuning",
+    icon: Sparkles,
+    desc: "LoRA, QLoRA, and instruction-tuning on foundation models.",
     vramDefault: 24,
     ratePerHour: 0.12,
-    frameworks:  ["LLaMA-3-8B", "LLaMA-3-70B", "Mistral 7B", "Phi-3", "Custom"],
-    inputHint:   "ipfs://Qm.../finetune-pairs.jsonl",
-    category:    "AI & Machine Learning",
+    frameworks: ["LLaMA-3-8B", "LLaMA-3-70B", "Mistral 7B", "Phi-3", "Custom"],
+    inputHint: "ipfs://Qm.../finetune-pairs.jsonl",
+    category: "AI & Machine Learning",
   },
   {
-    value:       "embedding",
-    label:       "Embeddings",
-    icon:        Database,
-    desc:        "Vectorize documents, images, or code for RAG and semantic search.",
+    value: "embedding",
+    label: "Embeddings",
+    icon: Database,
+    desc: "Vectorize documents, images, or code for RAG and semantic search.",
     vramDefault: 8,
     ratePerHour: 0.002,
-    frameworks:  ["text-embedding-3", "BGE-M3", "E5-mistral", "CLIP", "Custom"],
-    inputHint:   "s3://bucket/documents.jsonl",
-    category:    "AI & Machine Learning",
+    frameworks: ["text-embedding-3", "BGE-M3", "E5-mistral", "CLIP", "Custom"],
+    inputHint: "s3://bucket/documents.jsonl",
+    category: "AI & Machine Learning",
   },
   {
-    value:       "render",
-    label:       "3D Rendering",
-    icon:        Monitor,
-    desc:        "GPU render farms for Blender, Unreal, and Cinema 4D scene batches.",
+    value: "render",
+    label: "3D Rendering",
+    icon: Monitor,
+    desc: "GPU render farms for Blender, Unreal, and Cinema 4D scene batches.",
     vramDefault: 0, // needd to change to 4
     ratePerHour: 0.008,
-    frameworks:  ["Blender", "Cinema 4D", "Unreal Engine", "V-Ray", "Custom"],
-    inputHint:   "s3://bucket/scene.blend",
-    category:    "Creative & Media",
+    frameworks: ["Blender", "Cinema 4D", "Unreal Engine", "V-Ray", "Custom"],
+    inputHint: "s3://bucket/scene.blend",
+    category: "Creative & Media",
   },
   {
-    value:       "image-gen",
-    label:       "Image Generation",
-    icon:        ImageIcon,
-    desc:        "Stable Diffusion, FLUX, and ControlNet batch pipelines.",
+    value: "image-gen",
+    label: "Image Generation",
+    icon: ImageIcon,
+    desc: "Stable Diffusion, FLUX, and ControlNet batch pipelines.",
     vramDefault: 12,
     ratePerHour: 0.006,
-    frameworks:  ["SDXL", "FLUX.1-dev", "SD 1.5", "ControlNet", "Custom"],
-    inputHint:   "ipfs://Qm.../prompts.txt",
-    category:    "Creative & Media",
+    frameworks: ["SDXL", "FLUX.1-dev", "SD 1.5", "ControlNet", "Custom"],
+    inputHint: "ipfs://Qm.../prompts.txt",
+    category: "Creative & Media",
   },
   {
-    value:       "video-gen",
-    label:       "Video & Upscaling",
-    icon:        Film,
-    desc:        "AI video generation, frame interpolation, and 4K upscaling.",
+    value: "video-gen",
+    label: "Video & Upscaling",
+    icon: Film,
+    desc: "AI video generation, frame interpolation, and 4K upscaling.",
     vramDefault: 24,
     ratePerHour: 0.015,
-    frameworks:  ["AnimateDiff", "RIFE", "Real-ESRGAN", "FILM", "Custom"],
-    inputHint:   "s3://bucket/source-frames.tar.gz",
-    category:    "Creative & Media",
+    frameworks: ["AnimateDiff", "RIFE", "Real-ESRGAN", "FILM", "Custom"],
+    inputHint: "s3://bucket/source-frames.tar.gz",
+    category: "Creative & Media",
   },
   {
-    value:       "pipeline",
-    label:       "Data Pipeline",
-    icon:        Activity,
-    desc:        "GPU-accelerated ETL, RAPIDS feature engineering, and ML preprocessing.",
+    value: "pipeline",
+    label: "Data Pipeline",
+    icon: Activity,
+    desc: "GPU-accelerated ETL, RAPIDS feature engineering, and ML preprocessing.",
     vramDefault: 8,
     ratePerHour: 0.004,
-    frameworks:  ["RAPIDS cuDF", "CuPy", "Spark GPU", "Dask-CUDA", "Custom"],
-    inputHint:   "s3://bucket/raw-data.parquet",
-    category:    "Scientific & Data",
+    frameworks: ["RAPIDS cuDF", "CuPy", "Spark GPU", "Dask-CUDA", "Custom"],
+    inputHint: "s3://bucket/raw-data.parquet",
+    category: "Scientific & Data",
   },
   {
-    value:       "python_script",
-    label:       "Python Script",
-    icon:        FileText,
-    desc:        "Run any Python script. Upload your .py file and get logs + outputs back.",
+    value: "python_script",
+    label: "Python Script",
+    icon: FileText,
+    desc: "Run any Python script. Upload your .py file and get logs + outputs back.",
     vramDefault: 0,
     ratePerHour: 0.001,
-    frameworks:  ["NumPy", "Pandas", "Scikit-learn", "OpenCV", "Custom"],
-    inputHint:   "Upload a .py file above",
-    category:    "Scientific & Data",
+    frameworks: ["NumPy", "Pandas", "Scikit-learn", "OpenCV", "Custom"],
+    inputHint: "Upload a .py file above",
+    category: "Scientific & Data",
   },
   {
-    value:       "python_gpu",
-    label:       "Python (GPU)",
-    icon:        Zap,
-    desc:        "Python + PyTorch CUDA runtime for GPU workloads.",
+    value: "python_gpu",
+    label: "Python (GPU)",
+    icon: Zap,
+    desc: "Python + PyTorch CUDA runtime for GPU workloads.",
     vramDefault: 4,
     ratePerHour: 0.006,
-    frameworks:  ["PyTorch", "CUDA", "Diffusers", "Custom"],
-    inputHint:   "Upload a .py file above",
-    category:    "Scientific & Data",
+    frameworks: ["PyTorch", "CUDA", "Diffusers", "Custom"],
+    inputHint: "Upload a .py file above",
+    category: "Scientific & Data",
   },
 ] as const;
 
 type JobTypeValue = (typeof JOB_TYPE_DEFS)[number]["value"];
 
-const CATEGORIES = ["AI & Machine Learning", "Creative & Media", "Scientific & Data"] as const;
+const CATEGORIES = [
+  "AI & Machine Learning",
+  "Creative & Media",
+  "Scientific & Data",
+] as const;
 
 const DURATION_OPTIONS = [
-  { value: "short",    label: "< 1 hour"      },
-  { value: "medium",   label: "1 – 4 hours"   },
-  { value: "long",     label: "4 – 12 hours"  },
+  { value: "short", label: "< 1 hour" },
+  { value: "medium", label: "1 – 4 hours" },
+  { value: "long", label: "4 – 12 hours" },
   { value: "extended", label: "12 – 48 hours" },
-  { value: "batch",    label: "48+ hours"     },
+  { value: "batch", label: "48+ hours" },
 ] as const;
 type DurationValue = (typeof DURATION_OPTIONS)[number]["value"];
 
 const TIER_INFO: Record<0 | 1 | 2, { label: string; hint: string }> = {
-  0: { label: "Any",      hint: "No preference"    },
-  1: { label: "Trusted",  hint: "Staked providers" },
-  2: { label: "Verified", hint: "HW attested"      },
+  0: { label: "Any", hint: "No preference" },
+  1: { label: "Trusted", hint: "Staked providers" },
+  2: { label: "Verified", hint: "HW attested" },
 };
 
 type Priority = "standard" | "rush";
@@ -164,9 +184,12 @@ function FieldLabel({
   return (
     <label className="mb-2.5 flex items-center justify-between gap-4 text-sm font-medium text-white/70">
       <span>
-        {children}{required && <span className="ml-1 text-red-400">*</span>}
+        {children}
+        {required && <span className="ml-1 text-red-400">*</span>}
       </span>
-      {hint && <span className="text-xs font-normal text-white/30">{hint}</span>}
+      {hint && (
+        <span className="text-xs font-normal text-white/30">{hint}</span>
+      )}
     </label>
   );
 }
@@ -191,14 +214,11 @@ function FileUploader({
     const token = (session as any)?.accessToken;
 
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/upload`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        },
-      );
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -259,19 +279,19 @@ export default function SubmitJobPage(): React.ReactElement {
   const { connected, balance, address } = useWalletConnection();
 
   const { createJobEscrow } = useEscrow();
-  const [jobType,         setJobType]         = useState<JobTypeValue>("inference");
-  const [framework,       setFramework]       = useState("");
+  const [jobType, setJobType] = useState<JobTypeValue>("inference");
+  const [framework, setFramework] = useState("");
   const [customFramework, setCustomFramework] = useState("");
-  const [title,           setTitle]           = useState("");
-  const [inputUri,        setInputUri]        = useState("");
-  const [budget,          setBudget]          = useState("");
-  const [duration,        setDuration]        = useState<DurationValue>("medium");
-  const [requiredVram,    setRequiredVram]     = useState("4");
-  const [gpuTier,         setGpuTier]         = useState<0 | 1 | 2>(0);
-  const [priority,        setPriority]        = useState<Priority>("standard");
-  const [notes,           setNotes]           = useState("");
-  const [submitting,      setSubmitting]      = useState(false);
-  const [error,           setError]           = useState("");
+  const [title, setTitle] = useState("");
+  const [inputUri, setInputUri] = useState("");
+  const [budget, setBudget] = useState("");
+  const [duration, setDuration] = useState<DurationValue>("medium");
+  const [requiredVram, setRequiredVram] = useState("0");
+  const [gpuTier, setGpuTier] = useState<0 | 1 | 2>(0);
+  const [priority, setPriority] = useState<Priority>("standard");
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   const typeDef = JOB_TYPE_DEFS.find((t) => t.value === jobType)!;
 
@@ -296,18 +316,18 @@ export default function SubmitJobPage(): React.ReactElement {
     }
   };
 
-  const budgetNum   = Number(budget);
+  const budgetNum = Number(budget);
   const validBudget = !Number.isNaN(budgetNum) && budgetNum > 0;
-  const estHours    = validBudget ? budgetNum / typeDef.ratePerHour : 0;
+  const estHours = validBudget ? budgetNum / typeDef.ratePerHour : 0;
   const effectiveFw = framework === "Custom" ? customFramework : framework;
 
   const readiness = useMemo(
     () =>
       [
-        title.trim()    && "Job named",
+        title.trim() && "Job named",
         inputUri.trim() && "Input attached",
-        validBudget     && "Budget set",
-        effectiveFw     && `Framework: ${effectiveFw}`,
+        validBudget && "Budget set",
+        effectiveFw && `Framework: ${effectiveFw}`,
       ].filter(Boolean) as string[],
     [title, inputUri, validBudget, effectiveFw],
   );
@@ -337,7 +357,7 @@ export default function SubmitJobPage(): React.ReactElement {
     let mappedType: string = jobType;
     let dockerImage = "gnet/custom:latest";
     let timeLimitSecs = 3600;
-    
+
     if (jobType === "render") {
       mappedType = "blender_render";
       dockerImage = "linuxserver/blender:latest";
@@ -360,17 +380,20 @@ export default function SubmitJobPage(): React.ReactElement {
 
     try {
       const prepareResponse = await api.post("/api/jobs/submit/prepare", {
-        title:           title.trim(),
-        type:            mappedType,
+        title: title.trim(),
+        type: mappedType,
         dockerImage,
-        inputUri:        inputUri.trim(),
-        jobParams:       { framework: effectiveFw, notes, priority },
-        budget:          budgetNum,
-        requiredVramGB:  requiredVram === "" ? undefined : Math.max(0, Number(requiredVram)),
+        inputUri: inputUri.trim(),
+        jobParams: { framework: effectiveFw, notes, priority },
+        budget: budgetNum,
+        requiredVramGB:
+          requiredVram === "" ? undefined : Math.max(0, Number(requiredVram)),
         requiredGpuTier: gpuTier,
         clientWalletAddress: address,
         timeLimitSecs,
       });
+
+      console.log(prepareResponse);
 
       const stakeSignature = await createJobEscrow(
         String(prepareResponse.jobNumericId),
@@ -378,19 +401,21 @@ export default function SubmitJobPage(): React.ReactElement {
       );
 
       const data = await api.post("/api/jobs/submit", {
-        jobId:           prepareResponse.jobId,
+        jobId: prepareResponse.jobId,
         clientWalletAddress: address,
         stakeSignature,
       });
+
+      console.log(data);
 
       router.push(`/client/jobs/${data.jobId}`);
     } catch (err: any) {
       let msg = "Network error. Please check your connection and try again.";
       try {
-         const parsed = JSON.parse(err.message);
-         if (parsed.error) msg = parsed.error;
+        const parsed = JSON.parse(err.message);
+        if (parsed.error) msg = parsed.error;
       } catch {
-         // Keep default
+        // Keep default
       }
       setError(msg);
     } finally {
@@ -422,8 +447,8 @@ export default function SubmitJobPage(): React.ReactElement {
               Deploy Workload
             </h1>
             <p className="mt-4 max-w-2xl text-lg leading-relaxed text-white/50">
-              Choose a compute class, define requirements, attach your payload URI,
-              and lock escrow. The matchmaker routes it to the right GPU.
+              Choose a compute class, define requirements, attach your payload
+              URI, and lock escrow. The matchmaker routes it to the right GPU.
             </p>
           </div>
 
@@ -432,12 +457,15 @@ export default function SubmitJobPage(): React.ReactElement {
             className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]"
           >
             <div className="space-y-8">
-
               {/*Workload class*/}
               <section className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-2xl backdrop-blur-xl md:p-8">
                 <div className="mb-6">
-                  <p className="text-xs font-bold uppercase tracking-widest text-white/35">Step 1</p>
-                  <h2 className="mt-1 text-2xl font-bold text-white">Workload Class</h2>
+                  <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                    Step 1
+                  </p>
+                  <h2 className="mt-1 text-2xl font-bold text-white">
+                    Workload Class
+                  </h2>
                   <p className="mt-1 text-sm text-white/40">
                     Select the compute pattern that matches your job.
                   </p>
@@ -468,13 +496,19 @@ export default function SubmitJobPage(): React.ReactElement {
                                 <Icon
                                   className={`h-5 w-5 ${selected ? "text-brand-cyan" : "text-white/35"}`}
                                 />
-                                {selected && <CheckCircle2 className="h-4 w-4 text-brand-cyan" />}
+                                {selected && (
+                                  <CheckCircle2 className="h-4 w-4 text-brand-cyan" />
+                                )}
                               </div>
-                              <p className="text-sm font-bold text-white">{label}</p>
+                              <p className="text-sm font-bold text-white">
+                                {label}
+                              </p>
                               <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/40">
                                 {desc}
                               </p>
-                              <p className="mt-2 text-xs text-white/25">{vramDefault}+ GB VRAM</p>
+                              <p className="mt-2 text-xs text-white/25">
+                                {vramDefault}+ GB VRAM
+                              </p>
                             </button>
                           );
                         },
@@ -489,15 +523,21 @@ export default function SubmitJobPage(): React.ReactElement {
                 <div className="mb-6 flex items-center gap-3">
                   <FileText className="h-5 w-5 text-brand-cyan" />
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-white/35">Step 2</p>
-                    <h2 className="mt-0.5 text-2xl font-bold text-white">Job Details</h2>
+                    <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                      Step 2
+                    </p>
+                    <h2 className="mt-0.5 text-2xl font-bold text-white">
+                      Job Details
+                    </h2>
                   </div>
                 </div>
 
                 <div className="grid gap-6">
                   {/* Title */}
                   <div>
-                    <FieldLabel required hint={`${title.length}/100`}>Title</FieldLabel>
+                    <FieldLabel required hint={`${title.length}/100`}>
+                      Title
+                    </FieldLabel>
                     <input
                       type="text"
                       value={title}
@@ -540,14 +580,21 @@ export default function SubmitJobPage(): React.ReactElement {
 
                   {/* Input URI */}
                   <div>
-                    <FieldLabel required hint="S3 · IPFS · HTTPS">Input URI</FieldLabel>
-                    <FileUploader onUploaded={(uri, filename) => {
-                      setInputUri(uri);
-                      if (!title.trim()) setTitle(filename.replace(/\.[^.]+$/, "") + " job");
-                    }} />
+                    <FieldLabel required hint="S3 · IPFS · HTTPS">
+                      Input URI
+                    </FieldLabel>
+                    <FileUploader
+                      onUploaded={(uri, filename) => {
+                        setInputUri(uri);
+                        if (!title.trim())
+                          setTitle(filename.replace(/\.[^.]+$/, "") + " job");
+                      }}
+                    />
                     <div className="my-3 flex items-center gap-3">
                       <div className="h-px flex-1 bg-white/10" />
-                      <span className="text-xs text-white/30">or paste URI manually</span>
+                      <span className="text-xs text-white/30">
+                        or paste URI manually
+                      </span>
                       <div className="h-px flex-1 bg-white/10" />
                     </div>
                     <div className="relative">
@@ -572,7 +619,8 @@ export default function SubmitJobPage(): React.ReactElement {
                       </button>
                     </div>
                     <p className="mt-1.5 text-xs text-white/25">
-                      Upload your dataset to S3 or IPFS first, then paste the URI here.
+                      Upload your dataset to S3 or IPFS first, then paste the
+                      URI here.
                     </p>
                   </div>
 
@@ -595,15 +643,21 @@ export default function SubmitJobPage(): React.ReactElement {
                 <div className="mb-6 flex items-center gap-3">
                   <Cpu className="h-5 w-5 text-brand-cyan" />
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-white/35">Step 3</p>
-                    <h2 className="mt-0.5 text-2xl font-bold text-white">Requirements</h2>
+                    <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                      Step 3
+                    </p>
+                    <h2 className="mt-0.5 text-2xl font-bold text-white">
+                      Requirements
+                    </h2>
                   </div>
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
                   {/* Budget */}
                   <div>
-                    <FieldLabel required hint="SOL">Budget</FieldLabel>
+                    <FieldLabel required hint="SOL">
+                      Budget
+                    </FieldLabel>
                     <div className="relative">
                       <Coins className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-white/30" />
                       <input
@@ -618,23 +672,32 @@ export default function SubmitJobPage(): React.ReactElement {
                     </div>
                     {validBudget && (
                       <p className="mt-1.5 text-xs text-white/30">
-                        ≈ {estHours.toFixed(1)} hrs at {typeDef.ratePerHour} SOL/hr
+                        ≈ {estHours.toFixed(1)} hrs at {typeDef.ratePerHour}{" "}
+                        SOL/hr
                       </p>
                     )}
                   </div>
 
                   {/* Duration */}
                   <div>
-                    <FieldLabel hint="Expected runtime">Estimated Duration</FieldLabel>
+                    <FieldLabel hint="Expected runtime">
+                      Estimated Duration
+                    </FieldLabel>
                     <div className="relative">
                       <Clock className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-white/30" />
                       <select
                         value={duration}
-                        onChange={(e) => setDuration(e.target.value as DurationValue)}
+                        onChange={(e) =>
+                          setDuration(e.target.value as DurationValue)
+                        }
                         className="h-14 w-full appearance-none rounded-2xl border border-white/10 bg-black/45 pl-14 pr-10 text-base text-white outline-none transition-all focus:border-brand-cyan focus:ring-2 focus:ring-brand-cyan/20"
                       >
                         {DURATION_OPTIONS.map(({ value, label }) => (
-                          <option key={value} value={value} className="bg-gray-900">
+                          <option
+                            key={value}
+                            value={value}
+                            className="bg-gray-900"
+                          >
                             {label}
                           </option>
                         ))}
@@ -695,8 +758,12 @@ export default function SubmitJobPage(): React.ReactElement {
                             : "border-white/10 bg-black/30 text-white/45 hover:border-white/25 hover:text-white"
                         }`}
                       >
-                        <span className="block text-sm font-bold">{TIER_INFO[tier].label}</span>
-                        <span className="mt-1 block text-xs opacity-70">{TIER_INFO[tier].hint}</span>
+                        <span className="block text-sm font-bold">
+                          {TIER_INFO[tier].label}
+                        </span>
+                        <span className="mt-1 block text-xs opacity-70">
+                          {TIER_INFO[tier].hint}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -713,23 +780,43 @@ export default function SubmitJobPage(): React.ReactElement {
                   </p>
                   <div className="mt-2 flex items-center gap-3">
                     <typeDef.icon className="h-7 w-7 text-brand-cyan" />
-                    <h2 className="text-xl font-bold text-white">{typeDef.label}</h2>
+                    <h2 className="text-xl font-bold text-white">
+                      {typeDef.label}
+                    </h2>
                   </div>
                 </div>
 
                 <div className="space-y-3.5 border-y border-white/10 py-5">
                   {(
                     [
-                      ["Budget",       validBudget ? `${budgetNum.toFixed(3)} SOL` : "Set amount"],
-                      ["Est. Runtime", validBudget ? `${estHours.toFixed(1)} hrs`  : "Pending"],
-                      ["Duration",     DURATION_OPTIONS.find((d) => d.value === duration)?.label ?? "–"],
-                      ["Min VRAM",     requiredVram ? `${requiredVram} GB` : "Any"],
-                      ["Trust",        TIER_INFO[gpuTier].label],
-                      ["Priority",     priority === "rush" ? "Rush queue" : "Standard"],
+                      [
+                        "Budget",
+                        validBudget
+                          ? `${budgetNum.toFixed(3)} SOL`
+                          : "Set amount",
+                      ],
+                      [
+                        "Est. Runtime",
+                        validBudget ? `${estHours.toFixed(1)} hrs` : "Pending",
+                      ],
+                      [
+                        "Duration",
+                        DURATION_OPTIONS.find((d) => d.value === duration)
+                          ?.label ?? "–",
+                      ],
+                      ["Min VRAM", requiredVram ? `${requiredVram} GB` : "Any"],
+                      ["Trust", TIER_INFO[gpuTier].label],
+                      [
+                        "Priority",
+                        priority === "rush" ? "Rush queue" : "Standard",
+                      ],
                       ...(effectiveFw ? [["Framework", effectiveFw]] : []),
                     ] as [string, string][]
                   ).map(([label, value]) => (
-                    <div key={label} className="flex items-center justify-between gap-4">
+                    <div
+                      key={label}
+                      className="flex items-center justify-between gap-4"
+                    >
                       <span className="text-sm text-white/45">{label}</span>
                       <span className="max-w-[160px] truncate text-right text-sm font-semibold text-white">
                         {value}
@@ -741,18 +828,23 @@ export default function SubmitJobPage(): React.ReactElement {
                 <div className="mt-5 rounded-2xl border border-brand-cyan/20 bg-brand-cyan/5 p-4">
                   <div className="mb-2 flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-brand-cyan" />
-                    <p className="text-sm font-bold text-brand-cyan">On-Chain Escrow</p>
+                    <p className="text-sm font-bold text-brand-cyan">
+                      On-Chain Escrow
+                    </p>
                   </div>
                   <p className="text-sm leading-relaxed text-brand-cyan/70">
-                    Funds will be locked in a Solana smart contract. 
-                    The provider is only paid after verifiable completion.
+                    Funds will be locked in a Solana smart contract. The
+                    provider is only paid after verifiable completion.
                   </p>
                 </div>
 
                 {readiness.length > 0 && (
                   <div className="mt-5 space-y-2">
                     {readiness.map((item) => (
-                      <div key={item} className="flex items-center gap-2 text-sm text-white/60">
+                      <div
+                        key={item}
+                        className="flex items-center gap-2 text-sm text-white/60"
+                      >
                         <CheckCircle2 className="h-4 w-4 shrink-0 text-brand-cyan" />
                         {item}
                       </div>
@@ -772,26 +864,38 @@ export default function SubmitJobPage(): React.ReactElement {
                     <div className="flex items-center gap-3">
                       <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
                       <div>
-                        <p className="text-sm font-bold text-amber-300">Wallet required</p>
+                        <p className="text-sm font-bold text-amber-300">
+                          Wallet required
+                        </p>
                         <p className="text-xs text-amber-100/60 mt-0.5">
                           Connect your Solana wallet to lock funds and deploy
                         </p>
                       </div>
                     </div>
-                    <WalletConnectButton className="mt-3 w-full justify-center" showBalance={false} />
+                    <WalletConnectButton
+                      className="mt-3 w-full justify-center"
+                      showBalance={false}
+                    />
                   </div>
                 )}
 
-                {connected && balance !== null && balance < budgetNum && budgetNum > 0 && (
-                  <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300">
-                    ✗ Insufficient balance. You have {balance.toFixed(3)} SOL, but this job requires{" "}
-                    {budgetNum.toFixed(3)} SOL.
-                  </div>
-                )}
+                {connected &&
+                  balance !== null &&
+                  balance < budgetNum &&
+                  budgetNum > 0 && (
+                    <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300">
+                      ✗ Insufficient balance. You have {balance.toFixed(3)} SOL,
+                      but this job requires {budgetNum.toFixed(3)} SOL.
+                    </div>
+                  )}
 
                 <button
                   type="submit"
-                  disabled={submitting || !connected || (balance !== null && balance < budgetNum)}
+                  disabled={
+                    submitting ||
+                    !connected ||
+                    (balance !== null && balance < budgetNum)
+                  }
                   className="mt-6 flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-brand-cyan text-base font-bold text-brand-dark shadow-[0_0_35px_rgba(0,255,209,0.18)] transition-all hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? (

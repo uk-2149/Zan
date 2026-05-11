@@ -142,8 +142,19 @@ const STATUS_CONFIG: Record<
   },
 };
 
-const TERMINAL = new Set<JobStatus>(["COMPLETED", "FAILED", "PAID", "REFUNDED"]);
-const CANCELLABLE = new Set<JobStatus>(["CREATED", "FUNDED", "QUEUED", "ASSIGNED", "RUNNING"]);
+const TERMINAL = new Set<JobStatus>([
+  "COMPLETED",
+  "FAILED",
+  "PAID",
+  "REFUNDED",
+]);
+const CANCELLABLE = new Set<JobStatus>([
+  "CREATED",
+  "FUNDED",
+  "QUEUED",
+  "ASSIGNED",
+  "RUNNING",
+]);
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
@@ -201,7 +212,8 @@ function LogViewer({ logsUri }: { logsUri: string }): React.ReactElement {
     };
   }, [logsUri]);
 
-  if (loading) return <div className="text-sm text-white/40">Loading logs...</div>;
+  if (loading)
+    return <div className="text-sm text-white/40">Loading logs...</div>;
 
   return (
     <pre className="max-h-96 overflow-auto rounded-xl bg-black/50 p-4 text-xs text-green-400 font-mono whitespace-pre-wrap">
@@ -224,6 +236,7 @@ export default function JobDetailPage(): React.ReactElement {
   const fetchJob = useCallback(async () => {
     try {
       const data = await api.get(`/api/jobs/${jobId}`);
+      console.log(data.job);
       setJob(data.job);
     } catch (err: any) {
       if (err.message.includes("404") || err.message.includes("403")) {
@@ -396,14 +409,18 @@ export default function JobDetailPage(): React.ReactElement {
           </div>
 
           {/* Execution Logs */}
-          {job.executionMetadata?.logsUri && (job.status === "COMPLETED" || job.status === "FAILED" || job.status === "PAID" || job.status === "REFUNDED") && (
-            <div className="rounded-3xl border border-white/10 bg-brand-gray/20 backdrop-blur-xl p-6 mb-6">
-              <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">
-                Execution Logs
-              </h2>
-              <LogViewer logsUri={job.executionMetadata.logsUri} />
-            </div>
-          )}
+          {job.executionMetadata?.logsUri &&
+            (job.status === "COMPLETED" ||
+              job.status === "FAILED" ||
+              job.status === "PAID" ||
+              job.status === "REFUNDED") && (
+              <div className="rounded-3xl border border-white/10 bg-brand-gray/20 backdrop-blur-xl p-6 mb-6">
+                <h2 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">
+                  Execution Logs
+                </h2>
+                <LogViewer logsUri={job.executionMetadata.logsUri} />
+              </div>
+            )}
 
           {/* Output Files */}
           {job.executionMetadata?.outputFiles?.length ? (
@@ -484,7 +501,8 @@ export default function JobDetailPage(): React.ReactElement {
                   ◎ {Number(job.finalCost).toFixed(3)} SOL
                 </p>
                 <p className="text-xs text-white/25 mt-1">
-                  ◎ {(Number(job.budget) - Number(job.finalCost)).toFixed(3)} SOL saved (5% platform fee)
+                  ◎ {(Number(job.budget) - Number(job.finalCost)).toFixed(3)}{" "}
+                  SOL saved (5% platform fee)
                 </p>
               </div>
             )}
@@ -494,7 +512,9 @@ export default function JobDetailPage(): React.ReactElement {
                 <p className="text-xl font-bold text-green-400 font-mono">
                   ◎ {Number(job.budget).toFixed(3)} SOL
                 </p>
-                <p className="text-xs text-white/25 mt-1">Full refund on failure</p>
+                <p className="text-xs text-white/25 mt-1">
+                  Full refund on failure
+                </p>
               </div>
             )}
           </div>

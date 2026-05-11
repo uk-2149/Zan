@@ -33,6 +33,7 @@ export default function RootLayout({
       lang="en"
       className="dark scroll-smooth"
       data-scroll-behavior="smooth"
+      suppressHydrationWarning
     >
       <body
         className={`

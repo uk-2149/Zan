@@ -6,6 +6,7 @@ import { JOB_TYPES } from "../config/jobTypes.js";
 import type { JobTypeKey } from "../config/jobTypes.js";
 import { CONTAINERS, generateReadSASUrl } from "../lib/azure.js";
 import { sendCancelToProvider } from "../ws/server.js";
+import { debug } from "console";
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
@@ -20,7 +21,10 @@ function extractAzureBlobName(uri: string, container: string): string | null {
   }
 }
 
-async function maybePresignAzureUri(uri: string | null, container: string): Promise<string | null> {
+async function maybePresignAzureUri(
+  uri: string | null,
+  container: string,
+): Promise<string | null> {
   if (!uri) return null;
   const blobName = extractAzureBlobName(uri, container);
   if (!blobName) return uri;
@@ -47,9 +51,20 @@ export const prepareJobSubmit = async (req: Request, res: Response) => {
     timeLimitSecs,
   } = req.body;
 
-  if (!title?.trim() || !type || !dockerImage?.trim() || !inputUri?.trim() || !jobParams || !budget || !clientWalletAddress?.trim()) {
+  // debug("[prepareJobSubmit] Received job submission:", req.body);
+
+  if (
+    !title?.trim() ||
+    !type ||
+    !dockerImage?.trim() ||
+    !inputUri?.trim() ||
+    !jobParams ||
+    !budget ||
+    !clientWalletAddress?.trim()
+  ) {
     return res.status(400).json({
-      error: "title, type, dockerImage, inputUri, jobParams, budget, and clientWalletAddress are required",
+      error:
+        "title, type, dockerImage, inputUri, jobParams, budget, and clientWalletAddress are required",
     });
   }
 
@@ -64,22 +79,35 @@ export const prepareJobSubmit = async (req: Request, res: Response) => {
   }
 
   const requestedRequiredVramGB =
-    requiredVramGB === undefined || requiredVramGB === null || requiredVramGB === ""
+    requiredVramGB === undefined ||
+    requiredVramGB === null ||
+    requiredVramGB === ""
       ? typeConfig.minVramGB
       : Number(requiredVramGB);
 
   if (Number.isNaN(requestedRequiredVramGB) || requestedRequiredVramGB < 0) {
     return res.status(400).json({ error: "requiredVramGB must be >= 0" });
   }
-  const parsedRequiredVramGB = Math.max(typeConfig.minVramGB, requestedRequiredVramGB);
+  const parsedRequiredVramGB = Math.max(
+    typeConfig.minVramGB,
+    requestedRequiredVramGB,
+  );
 
   const parsedRequiredGpuTier =
-    requiredGpuTier === undefined || requiredGpuTier === null || requiredGpuTier === ""
+    requiredGpuTier === undefined ||
+    requiredGpuTier === null ||
+    requiredGpuTier === ""
       ? 0
       : Number(requiredGpuTier);
 
-  if (!Number.isInteger(parsedRequiredGpuTier) || parsedRequiredGpuTier < 0 || parsedRequiredGpuTier > 2) {
-    return res.status(400).json({ error: "requiredGpuTier must be 0, 1, or 2" });
+  if (
+    !Number.isInteger(parsedRequiredGpuTier) ||
+    parsedRequiredGpuTier < 0 ||
+    parsedRequiredGpuTier > 2
+  ) {
+    return res
+      .status(400)
+      .json({ error: "requiredGpuTier must be 0, 1, or 2" });
   }
 
   try {
@@ -103,11 +131,20 @@ export const prepareJobSubmit = async (req: Request, res: Response) => {
       data: {
         jobId: job.id,
         type: "CREATED",
-        metadata: { clientId, clientWalletAddress, jobType: type, budget: budgetNum },
+        metadata: {
+          clientId,
+          clientWalletAddress,
+          jobType: type,
+          budget: budgetNum,
+        },
       },
     });
 
-    res.status(201).json({ success: true, jobId: job.id, jobNumericId: job.jobNumericId.toString() });
+    res.status(201).json({
+      success: true,
+      jobId: job.id,
+      jobNumericId: job.jobNumericId.toString(),
+    });
   } catch (err) {
     console.error("[prepareJobSubmit]", err);
     res.status(500).json({ error: "Could not prepare job submission" });
@@ -119,8 +156,16 @@ export const submitJob = async (req: Request, res: Response) => {
   const clientId = (req as any).user.id;
   const { jobId, stakeSignature, clientWalletAddress } = req.body;
 
-  if (!jobId?.trim() || !stakeSignature?.trim() || !clientWalletAddress?.trim()) {
-    return res.status(400).json({ error: "jobId, stakeSignature, and clientWalletAddress are required" });
+  console.log(req.body);
+
+  if (
+    !jobId?.trim() ||
+    !stakeSignature?.trim() ||
+    !clientWalletAddress?.trim()
+  ) {
+    return res.status(400).json({
+      error: "jobId, stakeSignature, and clientWalletAddress are required",
+    });
   }
 
   try {
@@ -132,7 +177,9 @@ export const submitJob = async (req: Request, res: Response) => {
       return res.status(403).json({ error: "Not your job" });
     }
     if (job.status !== "CREATED") {
-      return res.status(400).json({ error: "Job can only be funded from CREATED state" });
+      return res
+        .status(400)
+        .json({ error: "Job can only be funded from CREATED state" });
     }
 
     const escrowOk = await solanaService.verifyJobEscrow(
@@ -142,13 +189,15 @@ export const submitJob = async (req: Request, res: Response) => {
     );
 
     if (!escrowOk) {
-      return res.status(400).json({ error: 'Invalid or missing escrow transaction on Solana' });
+      return res
+        .status(400)
+        .json({ error: "Invalid or missing escrow transaction on Solana" });
     }
 
     await prisma.$transaction(async (tx) => {
       await tx.job.update({
         where: { id: job.id },
-        data: { 
+        data: {
           status: "FUNDED",
           clientWalletAddress: clientWalletAddress.trim(), // Save for refunds
         },
@@ -168,7 +217,10 @@ export const submitJob = async (req: Request, res: Response) => {
         data: {
           jobId: job.id,
           type: "FUNDED",
-          metadata: { stakeSignature: stakeSignature.trim(), clientWalletAddress },
+          metadata: {
+            stakeSignature: stakeSignature.trim(),
+            clientWalletAddress,
+          },
         },
       });
     });
@@ -200,15 +252,17 @@ export const getJobById = async (req: Request, res: Response) => {
     });
 
     if (!job) return res.status(404).json({ error: "Job not found" });
-    
+
     // Security: only return job if req.user.id === job.clientId or assigned provider
     // Wait, getJobById requires JWT auth (so it's a User, not a Provider Agent)
     // To check if the user is the assigned provider, we'd need to fetch their provider record.
     // The spec says: Security: only return job if req.user.id === job.clientId (providers can also see their own assigned jobs)
-    
+
     let isProvider = false;
     if (job.providerId) {
-      const provider = await prisma.provider.findFirst({ where: { id: job.providerId, userId: userId }});
+      const provider = await prisma.provider.findFirst({
+        where: { id: job.providerId, userId: userId },
+      });
       if (provider) isProvider = true;
     }
 
@@ -216,21 +270,33 @@ export const getJobById = async (req: Request, res: Response) => {
       return res.status(403).json({ error: "Not your job" });
     }
 
-    const responseJob: any = { 
+    const responseJob: any = {
       ...job,
-      jobNumericId: job.jobNumericId?.toString()
+      jobNumericId: job.jobNumericId?.toString(),
     };
-    responseJob.outputUri = await maybePresignAzureUri(job.outputUri, CONTAINERS.outputs);
+    responseJob.outputUri = await maybePresignAzureUri(
+      job.outputUri,
+      CONTAINERS.outputs,
+    );
 
-    if (responseJob.executionMetadata && typeof responseJob.executionMetadata === "object") {
+    if (
+      responseJob.executionMetadata &&
+      typeof responseJob.executionMetadata === "object"
+    ) {
       const meta: any = { ...responseJob.executionMetadata };
-      meta.logsUri = await maybePresignAzureUri(meta.logsUri ?? null, CONTAINERS.outputs);
+      meta.logsUri = await maybePresignAzureUri(
+        meta.logsUri ?? null,
+        CONTAINERS.outputs,
+      );
 
       if (Array.isArray(meta.outputFiles)) {
         meta.outputFiles = await Promise.all(
           meta.outputFiles.map(async (file: any) => ({
             ...file,
-            uri: await maybePresignAzureUri(file?.uri ?? null, CONTAINERS.outputs),
+            uri: await maybePresignAzureUri(
+              file?.uri ?? null,
+              CONTAINERS.outputs,
+            ),
           })),
         );
       }
@@ -284,20 +350,24 @@ export const getMyStats = async (req: Request, res: Response) => {
   const clientId = (req as any).user.id;
 
   try {
-    const [totalJobs, activeJobs, spentResult, lockedResult] = await Promise.all([
-      prisma.job.count({ where: { clientId } }),
-      prisma.job.count({
-        where: { clientId, status: { in: ["FUNDED", "ASSIGNED", "RUNNING"] } },
-      }),
-      prisma.job.aggregate({
-        where: { clientId, status: "COMPLETED" },
-        _sum: { finalCost: true },
-      }),
-      prisma.escrow.aggregate({
-        where: { job: { clientId }, status: "LOCKED" },
-        _sum: { amount: true },
-      }),
-    ]);
+    const [totalJobs, activeJobs, spentResult, lockedResult] =
+      await Promise.all([
+        prisma.job.count({ where: { clientId } }),
+        prisma.job.count({
+          where: {
+            clientId,
+            status: { in: ["FUNDED", "ASSIGNED", "RUNNING"] },
+          },
+        }),
+        prisma.job.aggregate({
+          where: { clientId, status: "COMPLETED" },
+          _sum: { finalCost: true },
+        }),
+        prisma.escrow.aggregate({
+          where: { job: { clientId }, status: "LOCKED" },
+          _sum: { amount: true },
+        }),
+      ]);
 
     res.json({
       totalJobs,
@@ -320,7 +390,13 @@ export const jobComplete = async (req: Request, res: Response) => {
   try {
     const job = await prisma.job.findUnique({
       where: { id: jobId },
-      select: { providerId: true, retryCount: true, maxRetries: true, status: true, budget: true },
+      select: {
+        providerId: true,
+        retryCount: true,
+        maxRetries: true,
+        status: true,
+        budget: true,
+      },
     });
 
     if (!job) return res.status(404).json({ error: "Job not found" });
@@ -328,7 +404,9 @@ export const jobComplete = async (req: Request, res: Response) => {
       return res.status(403).json({ error: "Not your assigned job" });
     }
     if (job.status !== "RUNNING" && job.status !== "ASSIGNED") {
-      return res.status(400).json({ error: `Cannot complete job in ${job.status} state` });
+      return res
+        .status(400)
+        .json({ error: `Cannot complete job in ${job.status} state` });
     }
 
     if (success) {
@@ -341,8 +419,13 @@ export const jobComplete = async (req: Request, res: Response) => {
         },
       });
 
-      if (!jobDetails?.clientWalletAddress || !jobDetails?.provider?.user?.walletAddress) {
-        throw new Error('Missing on-chain wallet addresses for settle (clientWalletAddress or provider wallet)');
+      if (
+        !jobDetails?.clientWalletAddress ||
+        !jobDetails?.provider?.user?.walletAddress
+      ) {
+        throw new Error(
+          "Missing on-chain wallet addresses for settle (clientWalletAddress or provider wallet)",
+        );
       }
 
       const settleTxSig = await solanaService.settleJob(
@@ -367,7 +450,11 @@ export const jobComplete = async (req: Request, res: Response) => {
         }),
         prisma.escrow.update({
           where: { jobId },
-          data: { status: "RELEASED", releasedAt: new Date(), releaseTxSig: settleTxSig },
+          data: {
+            status: "RELEASED",
+            releasedAt: new Date(),
+            releaseTxSig: settleTxSig,
+          },
         }),
         prisma.providerMetric.update({
           where: { providerId },
@@ -385,15 +472,19 @@ export const jobComplete = async (req: Request, res: Response) => {
           data: {
             jobId,
             type: "COMPLETED",
-            metadata: { providerId, outputUri, earnings: providerEarnings, settleTxSig },
+            metadata: {
+              providerId,
+              outputUri,
+              earnings: providerEarnings,
+              settleTxSig,
+            },
           },
         }),
       ]);
-
     } else {
       const newRetryCount = job.retryCount + 1;
       const isPermanentFail = newRetryCount >= job.maxRetries;
-      
+
       const newStatus = isPermanentFail ? "FAILED" : "FUNDED";
 
       await prisma.job.update({
@@ -403,7 +494,7 @@ export const jobComplete = async (req: Request, res: Response) => {
           retryCount: newRetryCount,
           executionMetadata: executionMetadata || { error: errorMessage },
           completedAt: isPermanentFail ? new Date() : null,
-          providerId: isPermanentFail ? job.providerId : null // clear provider if we push back to queue
+          providerId: isPermanentFail ? job.providerId : null, // clear provider if we push back to queue
         },
       });
 
@@ -415,15 +506,21 @@ export const jobComplete = async (req: Request, res: Response) => {
 
         if (jobDetails?.clientWalletAddress && jobDetails.jobNumericId) {
           try {
-            await solanaService.refundJob(Number(jobDetails.jobNumericId), jobDetails.clientWalletAddress);
+            await solanaService.refundJob(
+              Number(jobDetails.jobNumericId),
+              jobDetails.clientWalletAddress,
+            );
           } catch (refundErr) {
-            console.error(`[reportJobFailed] On-chain refund failed for job ${jobId}`, refundErr);
+            console.error(
+              `[reportJobFailed] On-chain refund failed for job ${jobId}`,
+              refundErr,
+            );
           }
         }
 
         await prisma.escrow.update({
           where: { jobId },
-          data: { status: 'REFUNDED', refundedAt: new Date() } // Refund client if fails permanently
+          data: { status: "REFUNDED", refundedAt: new Date() }, // Refund client if fails permanently
         });
       } else {
         await enqueueJob(jobId);
@@ -433,27 +530,35 @@ export const jobComplete = async (req: Request, res: Response) => {
         data: {
           jobId,
           type: isPermanentFail ? "FAILED" : "RETRY",
-          metadata: { providerId, error: errorMessage, retryCount: newRetryCount },
+          metadata: {
+            providerId,
+            error: errorMessage,
+            retryCount: newRetryCount,
+          },
         },
       });
 
       // Provider should be available again after the attempt
-      await prisma.provider.update({
-        where: { id: providerId },
-        data: isPermanentFail
-          ? { status: "ACTIVE", jobsCompleted: { increment: 1 } }
-          : { status: "ACTIVE" },
-      }).catch(() => {});
+      await prisma.provider
+        .update({
+          where: { id: providerId },
+          data: isPermanentFail
+            ? { status: "ACTIVE", jobsCompleted: { increment: 1 } }
+            : { status: "ACTIVE" },
+        })
+        .catch(() => {});
 
       if (isPermanentFail) {
-        await prisma.providerMetric.update({
-          where: { providerId },
-          data: {
-            totalJobs: { increment: 1 },
-            successfulJobs: { increment: 0 },
-            failedJobs: { increment: 1 },
-          },
-        }).catch(() => {});
+        await prisma.providerMetric
+          .update({
+            where: { providerId },
+            data: {
+              totalJobs: { increment: 1 },
+              successfulJobs: { increment: 0 },
+              failedJobs: { increment: 1 },
+            },
+          })
+          .catch(() => {});
       }
     }
 
@@ -515,7 +620,13 @@ export const cancelJob = async (req: Request, res: Response) => {
     if (job.clientId !== clientId)
       return res.status(403).json({ error: "Not your job" });
 
-    const cancellableStatuses = ["CREATED", "FUNDED", "QUEUED", "ASSIGNED", "RUNNING"];
+    const cancellableStatuses = [
+      "CREATED",
+      "FUNDED",
+      "QUEUED",
+      "ASSIGNED",
+      "RUNNING",
+    ];
     if (!cancellableStatuses.includes(job.status)) {
       return res
         .status(409)
@@ -527,21 +638,29 @@ export const cancelJob = async (req: Request, res: Response) => {
         try {
           const refundTxSig = await solanaService.refundJob(
             Number(job.jobNumericId),
-            job.clientWalletAddress
+            job.clientWalletAddress,
           );
-          await prisma.escrow.update({
-            where: { jobId },
-            data: { refundTxSig, refundedAt: new Date() }
-          }).catch(() => {});
+          await prisma.escrow
+            .update({
+              where: { jobId },
+              data: { refundTxSig, refundedAt: new Date() },
+            })
+            .catch(() => {});
           console.log(`[cancelJob] On-chain refund successful: ${refundTxSig}`);
         } catch (refundErr) {
-          console.error(`[cancelJob] On-chain refund failed for job ${jobId}:`, refundErr);
+          console.error(
+            `[cancelJob] On-chain refund failed for job ${jobId}:`,
+            refundErr,
+          );
           return res.status(502).json({
-            error: "Cancel failed because the on-chain refund could not be confirmed",
+            error:
+              "Cancel failed because the on-chain refund could not be confirmed",
           });
         }
       } else {
-        console.warn(`[cancelJob] Missing clientWalletAddress or jobNumericId for job ${jobId}, skipping on-chain refund`);
+        console.warn(
+          `[cancelJob] Missing clientWalletAddress or jobNumericId for job ${jobId}, skipping on-chain refund`,
+        );
       }
     }
 
