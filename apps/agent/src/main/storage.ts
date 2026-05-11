@@ -2,7 +2,7 @@ import { BlobServiceClient } from "@azure/storage-blob";
 import * as fs from "fs";
 import * as path from "path";
 
-function loadDotEnv(): void {
+export function loadDotEnv(): void {
   const candidates = [
     path.resolve(__dirname, "../../.env"),
     path.resolve(process.cwd(), "apps/agent/.env"),

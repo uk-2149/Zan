@@ -3,7 +3,7 @@ name: Electron Build
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
 
 concurrency:
@@ -51,6 +51,22 @@ jobs:
 
       - name: Build workspace dependencies
         run: pnpm turbo run build --filter='@repo/provider-agent^...'
+
+      - name: Write agent .env
+        run: |
+          {
+            echo "AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}"
+            echo "AZURE_STORAGE_CONTAINER_INPUTS=${AZURE_STORAGE_CONTAINER_INPUTS}"
+            echo "AZURE_STORAGE_CONTAINER_OUTPUTS=${AZURE_STORAGE_CONTAINER_OUTPUTS}"
+            echo "WEB_URL=${WEB_URL}"
+            echo "API_URL=${API_URL}"
+          } > apps/agent/.env
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+          AZURE_STORAGE_CONTAINER_INPUTS: ${{ secrets.AZURE_STORAGE_CONTAINER_INPUTS }}
+          AZURE_STORAGE_CONTAINER_OUTPUTS: ${{ secrets.AZURE_STORAGE_CONTAINER_OUTPUTS }}
+          WEB_URL: ${{ secrets.WEB_URL }}
+          API_URL: ${{ secrets.API_URL }}
 
       - name: Build Electron app
         working-directory: apps/agent

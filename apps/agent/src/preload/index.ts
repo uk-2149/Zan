@@ -66,5 +66,6 @@ contextBridge.exposeInMainWorld("api", {
 
   openExternal: (url: string) => ipcRenderer.invoke("app:open-external", url),
   getVerifyUrl: () => ipcRenderer.invoke("app:get-verify-url"),
+  getStakeUrl: () => ipcRenderer.invoke("app:get-stake-url"),
   getWalletBalance: () => ipcRenderer.invoke("wallet:get-balance"),
 });

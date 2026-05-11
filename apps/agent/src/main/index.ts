@@ -1,4 +1,3 @@
-import * as fs from "fs";
 import * as path from "path";
 import { app, shell, BrowserWindow, ipcMain } from "electron";
 import { join } from "path";
@@ -6,43 +5,6 @@ import { mkdirSync } from "fs";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import axios from "axios";
 import { store } from "./store";
-
-function loadDotEnv(): void {
-  const candidates = [
-    path.resolve(__dirname, "../../.env"),
-    path.resolve(process.cwd(), "apps/agent/.env"),
-    path.resolve(process.cwd(), ".env"),
-  ];
-
-  for (const envPath of candidates) {
-    if (!fs.existsSync(envPath)) continue;
-    const contents = fs.readFileSync(envPath, "utf8");
-
-    for (const line of contents.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const equalsIndex = trimmed.indexOf("=");
-      if (equalsIndex === -1) continue;
-
-      const key = trimmed.slice(0, equalsIndex).trim();
-      let value = trimmed.slice(equalsIndex + 1).trim();
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
-        value = value.slice(1, -1);
-      }
-
-      if (!(key in process.env)) {
-        process.env[key] = value;
-      }
-    }
-
-    break;
-  }
-}
-
-loadDotEnv();
 import { detectHardware } from "./detect";
 import { HeartbeatService } from "./heartbeat";
 import { connectWebSocket, disconnectWebSocket } from "./ws-client";
@@ -414,4 +376,12 @@ ipcMain.handle("app:open-external", (_, url: string) =>
 ipcMain.handle("app:get-verify-url", () => {
   const token = store.get("token");
   return `http://localhost:3000/wallet?token=${token}`;
+});
+
+ipcMain.handle("app:get-stake-url", () => {
+  const baseUrl = (process.env.WEB_URL || "http://localhost:3000").replace(
+    /\/+$/,
+    "",
+  );
+  return `${baseUrl}/stake`;
 });

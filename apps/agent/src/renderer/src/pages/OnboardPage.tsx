@@ -16,20 +16,25 @@ interface DetectStep {
 }
 
 const INIT_STEPS: DetectStep[] = [
-  { label: "CPU & Memory",  status: "pending" },
+  { label: "CPU & Memory", status: "pending" },
   { label: "GPU Detection", status: "pending" },
-  { label: "CUDA Version",  status: "pending" },
-  { label: "Docker",        status: "pending" },
+  { label: "CUDA Version", status: "pending" },
+  { label: "Docker", status: "pending" },
 ];
 
 export default function OnboardPage({ onComplete, onBack }: Props) {
-  const [step, setStep]         = useState<Step>("detecting");
-  const [steps, setSteps]       = useState<DetectStep[]>(INIT_STEPS);
+  const [step, setStep] = useState<Step>("detecting");
+  const [steps, setSteps] = useState<DetectStep[]>(INIT_STEPS);
   const [hardware, setHardware] = useState<any>(null);
-  const [price, setPrice]       = useState("0.0010");
+  const [price, setPrice] = useState("0.0010");
   const [stakeSignature, setStakeSignature] = useState("");
   const [walletAddress, setWalletAddress] = useState("");
-  const [error, setError]       = useState("");
+  const [error, setError] = useState("");
+
+  const openStakePage = async () => {
+    const url = await window.api.getStakeUrl();
+    await window.api.openExternal(url);
+  };
 
   const updateStep = (incoming: DetectStep) => {
     setSteps((prev) =>
@@ -52,32 +57,39 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
     }
   };
 
-  useEffect(() => { runDetection() }, []);
+  useEffect(() => {
+    runDetection();
+  }, []);
 
   const handleRegister = async () => {
     setError("");
     setStep("registering");
     const res = await window.api.registerMachine({
-      hardwareInfo:   hardware,
-      pricePerHour:   parseFloat(price) || 0.001,
+      hardwareInfo: hardware,
+      pricePerHour: parseFloat(price) || 0.001,
       stakeSignature: stakeSignature.trim(),
-      walletAddress:  walletAddress.trim(),
-      stakedAmount:   2,
+      walletAddress: walletAddress.trim(),
+      stakedAmount: 2,
     });
 
     if (res.success) {
       setStep("done");
       setTimeout(() => {
         onComplete({
-          id:             res.providerId,
-          gpuModel:       hardware.gpuModel,
-          vramGB:         hardware.vramGB,
-          status:         "ACTIVE",
-          tier:           0,
+          id: res.providerId,
+          gpuModel: hardware.gpuModel,
+          vramGB: hardware.vramGB,
+          status: "ACTIVE",
+          tier: 0,
           reputationScore: 0,
-          stakedAmount:   2,
-          pricePerHour:   parseFloat(price),
-          metrics: { totalJobs: 0, successfulJobs: 0, totalEarnedSol: 0, uptimePercent: 0 },
+          stakedAmount: 2,
+          pricePerHour: parseFloat(price),
+          metrics: {
+            totalJobs: 0,
+            successfulJobs: 0,
+            totalEarnedSol: 0,
+            uptimePercent: 0,
+          },
         });
       }, 1600);
     } else {
@@ -87,23 +99,33 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
   };
 
   // Determine if GPU is suitable for jobs
-  const isIntegrated   = hardware?.isIntegratedGpu ?? false;
-  const hasNoGpu       = !hardware || hardware.gpuModel === "Unknown GPU";
-  const gpuVendor      = hardware?.gpuVendor ?? "unknown";
-  const isNvidia       = gpuVendor === "nvidia";
-  const canRunHeavyJobs = isNvidia && !isIntegrated && (hardware?.vramGB ?? 0) >= 6;
+  const isIntegrated = hardware?.isIntegratedGpu ?? false;
+  const hasNoGpu = !hardware || hardware.gpuModel === "Unknown GPU";
+  const gpuVendor = hardware?.gpuVendor ?? "unknown";
+  const isNvidia = gpuVendor === "nvidia";
+  const canRunHeavyJobs =
+    isNvidia && !isIntegrated && (hardware?.vramGB ?? 0) >= 6;
 
   return (
     <div className="onboard-root">
       <div className="onboard-wrap">
         <button className="back-btn" onClick={onBack}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <polyline points="15 18 9 12 15 6" />
           </svg>
           Back
         </button>
 
-        <div className="ob-logo"><span className="logo-g">G</span>NET</div>
+        <div className="ob-logo">
+          <span className="logo-g">G</span>NET
+        </div>
         <h2 className="ob-title">Add this machine</h2>
         <p className="ob-sub">We'll detect your hardware automatically</p>
 
@@ -115,15 +137,17 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
                 <div className="d-ind">
                   {s.status === "pending" && <span className="d-pending" />}
                   {s.status === "running" && <span className="d-spinner" />}
-                  {s.status === "done"    && <span className="d-check">✓</span>}
-                  {s.status === "warn"    && <span className="d-warn">⚠</span>}
-                  {s.status === "error"   && <span className="d-x">✗</span>}
+                  {s.status === "done" && <span className="d-check">✓</span>}
+                  {s.status === "warn" && <span className="d-warn">⚠</span>}
+                  {s.status === "error" && <span className="d-x">✗</span>}
                 </div>
                 <div className="d-info">
                   <span className="d-label">{s.label}</span>
                   {s.value && <span className="d-val">{s.value}</span>}
                   {s.error && (
-                    <span className={s.status === "warn" ? "d-warn-txt" : "d-err"}>
+                    <span
+                      className={s.status === "warn" ? "d-warn-txt" : "d-err"}
+                    >
                       {s.error}
                     </span>
                   )}
@@ -145,7 +169,11 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
               />
               <HwRow
                 k="VRAM"
-                v={hardware.vramGB > 0 ? `${hardware.vramGB} GB` : "Shared (integrated)"}
+                v={
+                  hardware.vramGB > 0
+                    ? `${hardware.vramGB} GB`
+                    : "Shared (integrated)"
+                }
                 warn={hardware.vramGB === 0}
               />
               <HwRow
@@ -154,11 +182,15 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
                 warn={isNvidia && !hardware.cudaVersion}
               />
               <HwRow k="Driver" v={hardware.driverVersion ?? "—"} />
-              <HwRow k="CPU"    v={hardware.cpuModel} />
-              <HwRow k="RAM"    v={`${hardware.ramGB} GB`} />
+              <HwRow k="CPU" v={hardware.cpuModel} />
+              <HwRow k="RAM" v={`${hardware.ramGB} GB`} />
               <HwRow
                 k="Docker"
-                v={hardware.dockerInstalled ? `v${hardware.dockerVersion}` : "Not installed"}
+                v={
+                  hardware.dockerInstalled
+                    ? `v${hardware.dockerVersion}`
+                    : "Not installed"
+                }
                 warn={!hardware.dockerInstalled}
               />
             </div>
@@ -166,44 +198,60 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
             {/* ── GPU compatibility warnings ── */}
             {hasNoGpu && (
               <div className="warn-box warn-box--red">
-                ✗ No GPU detected. A dedicated GPU is required to run compute jobs on GNet.
+                ✗ No GPU detected. A dedicated GPU is required to run compute
+                jobs on GNet.
               </div>
             )}
 
             {!hasNoGpu && isIntegrated && (
               <div className="warn-box warn-box--amber">
-                ⚠ Integrated {gpuVendor === "intel" ? "Intel" : gpuVendor === "amd" ? "AMD" : ""} GPU detected.
-                This machine can only receive lightweight jobs. Most ML, rendering,
-                and AI jobs require a dedicated NVIDIA GPU with 6GB+ VRAM.
-                You can still register, but job availability will be limited.
+                ⚠ Integrated{" "}
+                {gpuVendor === "intel"
+                  ? "Intel"
+                  : gpuVendor === "amd"
+                    ? "AMD"
+                    : ""}{" "}
+                GPU detected. This machine can only receive lightweight jobs.
+                Most ML, rendering, and AI jobs require a dedicated NVIDIA GPU
+                with 6GB+ VRAM. You can still register, but job availability
+                will be limited.
               </div>
             )}
 
             {!hasNoGpu && !isIntegrated && !isNvidia && (
               <div className="warn-box warn-box--amber">
                 ⚠ {gpuVendor === "amd" ? "AMD" : "Non-NVIDIA"} GPU detected.
-                CUDA-based jobs won't be compatible. ROCm-compatible jobs will be assigned.
-                Support is limited during beta.
+                CUDA-based jobs won't be compatible. ROCm-compatible jobs will
+                be assigned. Support is limited during beta.
               </div>
             )}
 
-            {!hasNoGpu && isNvidia && !isIntegrated && (hardware?.vramGB ?? 0) < 6 && (
-              <div className="warn-box warn-box--amber">
-                ⚠ Low VRAM ({hardware.vramGB}GB). Jobs requiring 6GB+ VRAM won't be assigned.
-                Lightweight inference jobs will still be available.
-              </div>
-            )}
+            {!hasNoGpu &&
+              isNvidia &&
+              !isIntegrated &&
+              (hardware?.vramGB ?? 0) < 6 && (
+                <div className="warn-box warn-box--amber">
+                  ⚠ Low VRAM ({hardware.vramGB}GB). Jobs requiring 6GB+ VRAM
+                  won't be assigned. Lightweight inference jobs will still be
+                  available.
+                </div>
+              )}
 
             {canRunHeavyJobs && (
               <div className="info-box--green">
-                ✓ Your GPU is compatible with all job types including ML training, rendering, and image generation.
+                ✓ Your GPU is compatible with all job types including ML
+                training, rendering, and image generation.
               </div>
             )}
 
             {!hardware.dockerInstalled && (
               <div className="warn-box warn-box--red">
                 ✗ Docker is required to run jobs.{" "}
-                <a href="https://docs.docker.com/get-docker/" target="_blank" rel="noreferrer">
+                <a
+                  href="https://docs.docker.com/get-docker/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Install Docker →
                 </a>
               </div>
@@ -234,17 +282,26 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
               <div className="sb-top">
                 <div>
                   <div className="sb-title">Required stake</div>
-                  <div className="sb-sub">Stake 2 SOL to register on the network</div>
+                  <div className="sb-sub">
+                    Stake 2 SOL to register on the network
+                  </div>
                 </div>
                 <div className="sb-amount">2 SOL</div>
               </div>
 
               <button
                 className="btn-stake-web"
-                onClick={() => window.api.openExternal("http://localhost:3000/stake")}
+                onClick={openStakePage}
                 type="button"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                   <polyline points="15 3 21 3 21 9" />
                   <line x1="10" y1="14" x2="21" y2="3" />
@@ -255,11 +312,15 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
               <div className="stake-steps">
                 <div className="stake-step">
                   <span className="step-num">1</span>
-                  <span>Click above to open the staking page in your browser</span>
+                  <span>
+                    Click above to open the staking page in your browser
+                  </span>
                 </div>
                 <div className="stake-step">
                   <span className="step-num">2</span>
-                  <span>Connect Phantom wallet &amp; approve the transaction</span>
+                  <span>
+                    Connect Phantom wallet &amp; approve the transaction
+                  </span>
                 </div>
                 <div className="stake-step">
                   <span className="step-num">3</span>
@@ -294,8 +355,18 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
             <button
               className="btn-primary btn-full"
               onClick={handleRegister}
-              disabled={!hardware.dockerInstalled || !stakeSignature.trim() || !walletAddress.trim()}
-              title={!hardware.dockerInstalled ? "Docker required to register" : (!stakeSignature ? "Missing tx signature" : "")}
+              disabled={
+                !hardware.dockerInstalled ||
+                !stakeSignature.trim() ||
+                !walletAddress.trim()
+              }
+              title={
+                !hardware.dockerInstalled
+                  ? "Docker required to register"
+                  : !stakeSignature
+                    ? "Missing tx signature"
+                    : ""
+              }
             >
               Verify Stake & Register Machine
             </button>
@@ -327,11 +398,23 @@ export default function OnboardPage({ onComplete, onBack }: Props) {
   );
 }
 
-function HwRow({ k, v, hi, warn }: { k: string; v: string; hi?: boolean; warn?: boolean }) {
+function HwRow({
+  k,
+  v,
+  hi,
+  warn,
+}: {
+  k: string;
+  v: string;
+  hi?: boolean;
+  warn?: boolean;
+}) {
   return (
     <div className={`hw-row ${warn ? "warn-row" : ""}`}>
       <span className="hw-k">{k}</span>
-      <span className={`hw-v ${hi ? "hi" : ""} ${warn ? "warn-val" : ""}`}>{v}</span>
+      <span className={`hw-v ${hi ? "hi" : ""} ${warn ? "warn-val" : ""}`}>
+        {v}
+      </span>
     </div>
   );
 }

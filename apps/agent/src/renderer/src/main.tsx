@@ -24,6 +24,7 @@ declare global {
       getWalletBalance: () => Promise<any>;
       openExternal: (url: string) => Promise<any>;
       getVerifyUrl: () => Promise<string>;
+      getStakeUrl: () => Promise<string>;
     };
   }
 }
