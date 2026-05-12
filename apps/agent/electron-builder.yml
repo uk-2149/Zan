@@ -16,6 +16,7 @@ extraResources:
     to: .env
 win:
   executableName: provider-agent
+  icon: build/icon.ico
 nsis:
   artifactName: zan-provider-agent-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -23,6 +24,7 @@ nsis:
   createDesktopShortcut: always
 mac:
   identity: null
+  icon: build/icon.icns
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.

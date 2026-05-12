@@ -77,7 +77,7 @@ function createWindow(): void {
 
   mainWindow.on("ready-to-show", () => {
     mainWindow!.show();
-    mainWindow!.webContents.openDevTools(); // auto-opens devtools
+    // mainWindow!.webContents.openDevTools(); // auto-opens devtools
   });
   // Minimize to tray instead of closing
   mainWindow.on("close", (e) => {
@@ -375,7 +375,7 @@ ipcMain.handle("app:open-external", (_, url: string) =>
 
 ipcMain.handle("app:get-verify-url", () => {
   const token = store.get("token");
-  return `http://localhost:3000/wallet?token=${token}`;
+  return `${process.env.WEB_URL}/wallet?token=${token}`;
 });
 
 ipcMain.handle("app:get-stake-url", () => {
