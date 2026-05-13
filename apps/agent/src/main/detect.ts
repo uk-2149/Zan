@@ -229,13 +229,29 @@ async function detectDocker(): Promise<{
   installed: boolean;
   version: string | null;
 }> {
-  try {
-    const { stdout } = await execAsync("docker --version");
-    const match = stdout.match(/version ([\d.]+)/);
-    return { installed: true, version: match ? match[1] : "unknown" };
-  } catch {
-    return { installed: false, version: null };
+  const possiblePaths = [
+    "docker",
+    "/usr/local/bin/docker",
+    "/opt/homebrew/bin/docker",
+  ];
+
+  for (const cmd of possiblePaths) {
+    try {
+      const { stdout } = await execAsync(`${cmd} --version`);
+
+      const match = stdout.match(/version ([\\d.]+)/);
+
+      return {
+        installed: true,
+        version: match ? match[1] : "unknown",
+      };
+    } catch {}
   }
+
+  return {
+    installed: false,
+    version: null,
+  };
 }
 
 export async function detectHardware(
