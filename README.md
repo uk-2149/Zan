@@ -1,6 +1,41 @@
-## Local development
+# Zan : The Uber For GPUs
 
-Use the Makefile to run the common local dev workflows:
+Zan is a decentralized compute network with a web client for job submission, an API server, and a provider desktop agent. This repository is a pnpm and Turbo monorepo.
+
+## Documentation
+
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md) - End-user workflow for clients and providers
+- [docs/CLIENT_PLATFORM.md](docs/CLIENT_PLATFORM.md) - Technical reference for client-facing flows
+- [docs/PRODUCT_MEDIA.md](docs/PRODUCT_MEDIA.md) - Product links and media
+
+## Product Resources
+
+- Product site: https://zan-web.vercel.app/
+- Product demo video: https://youtu.be/8fufZY50o3Q
+- Presentation video: https://youtu.be/aW1hg-2UpQ0
+- Presentation slides (PPT): https://docs.google.com/presentation/d/11yXKKGzKZk45N5OK6miEZVdhNeodYCmdrd5FsoRi97U/edit?usp=sharing
+
+## Repository Layout
+
+- `apps/agent` - Electron provider agent
+- `server` - Express API server
+- `web` - Next.js web app
+- `packages/contracts` - Solana programs
+- `packages/sdk` - TypeScript SDK
+- `packages/db` - Prisma models and client
+- `packages/ui` - Shared UI components
+- `packages/crypto` - Crypto utilities
+- `packages/types` - Shared types
+
+## Prerequisites
+
+- Node.js >= 18
+- pnpm 9.x
+- Make (recommended for local workflows)
+
+## Local Development
+
+Use the [Makefile](Makefile) to run the common local dev workflows:
 
 ```sh
 make help
@@ -13,9 +48,9 @@ Common targets:
 - `make dev-web` - Next.js web app
 - `make dev-server` - API server
 - `make dev-agent` - Electron provider agent
-- `make dev-db` - watch build for `@repo/db`
+- `make dev-db` - Watch build for `@repo/db`
 - `make db-generate` - Prisma client
-- `make db-reset` - seed reset
+- `make db-reset` - Seed reset
 
 ### Windows: install `make`
 
@@ -42,9 +77,9 @@ The Zan Provider Agent is an Electron-based desktop application that allows GPU 
 
 Download the latest version from [GitHub Releases](https://github.com/uk-2149/Zan/releases):
 
-- **Linux**: `.AppImage`, `.deb`, or `.snap` packages
-- **Windows**: `.exe` installer
-- **macOS**: `.dmg` disk image
+- Linux: `.AppImage`, `.deb`, or `.snap` packages
+- Windows: `.exe` installer
+- macOS: `.dmg` disk image
 
 ### Building from Source
 
@@ -67,10 +102,6 @@ npm run build:mac      # macOS
 To create a new release with downloadable binaries:
 
 ```sh
-# Use the release script
-./scripts/release-agent.sh v1.0.0
-
-# Or manually create and push a tag
 git tag -a v1.0.0 -m "Release v1.0.0"
 git push origin v1.0.0
 ```
